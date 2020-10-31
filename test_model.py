@@ -45,10 +45,29 @@ def test_create_game_puts_character_in_maze():
 
     # assert
     client.fetch_game()
-    
+
     my_entities = client.game.units_by_player[client.player_id]
     assert len(my_entities) == 1
-    
+
     char = my_entities[0]
     assert char.player_id == client.player_id
     assert char.id
+
+
+def test_move_char():
+    # arrange
+    server = Server()
+    client = Client(server)
+    client.create_game('player')
+
+    client.fetch_game()
+
+    char = client.game.units_by_player[client.player_id][0]
+
+    # act
+    new_x = char.x - 1 if char.x > 1 else char.x + 1
+    client.move_char(char.id, new_x, char.y)
+
+    # assert
+    client.fetch_game()
+    assert char.x == new_x

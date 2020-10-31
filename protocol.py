@@ -24,10 +24,20 @@ class JoinGameResponse:
 
 
 class GetGameRequest:
-    def __init__(self, game_token):
+    def __init__(self, game_token, player_id):
         self.game_token = game_token
+        self.player_id = player_id
 
 
 class GetGameResponse:
     def __init__(self, game: Game):
         self.game = game
+
+
+class MoveCharRequest:
+    def __init__(self, game_token, player_id, unit_id, x, y):
+        self.game_token = game_token
+        self.player_id = player_id
+        self.unit_id = unit_id
+        self.x = x
+        self.y = y

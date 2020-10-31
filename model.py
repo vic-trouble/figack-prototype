@@ -25,19 +25,20 @@ class Maze:
 
     @property
     def free_cells(self):
-        return [(x, y) for x in range(self.width) for y in range(self.height) if self.get(x, y) == '.']
+        return set((x, y) for x in range(self.width) for y in range(self.height) if self.get(x, y) == '.')
 
 
 class MazeEntity:
-    def __init__(self, id: int, x: int, y: int):
+    def __init__(self, id, x, y, opaque=False):
         self.id = id
         self.x = x
         self.y = y
+        self.opaque = opaque
 
 
 class Unit(MazeEntity):
     def __init__(self, id, x, y, hp=0, player_id=0):
-        super().__init__(id, x, y)
+        super().__init__(id, x, y, opaque=True)
         self.hp = hp
         self.player_id = player_id
 
@@ -61,3 +62,7 @@ class Game:
             if isinstance(entity, Unit) and entity.player_id:
                 r[entity.player_id].append(entity)
         return r
+
+    @property
+    def occupied_cells(self):
+        return set((entity.x, entity.y) for entity in self.entities.values() if entity.opaque)

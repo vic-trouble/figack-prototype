@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from model import *
@@ -15,27 +16,38 @@ class Server:
 
     def serve(self, request):
         with self._lock:
-            if isinstance(request, CreateGameRequest):
-                game = self._create_game()
-                self._games.append(game)
-                game_token = len(self._games)
+            try:
+                if isinstance(request, CreateGameRequest):
+                    game = self._create_game()
+                    self._games.append(game)
+                    game_token = len(self._games)  # TODO: issue one token per player!
 
-                player = GameOp(game).add_player(request.player_name)
-                GameOp(game).spawn_unit(hp=PLAYER_CHAR_INIT_HP, player_id=player.id)
+                    player = GameOp(game).add_player(request.player_name)
+                    GameOp(game).spawn_unit(hp=PLAYER_CHAR_INIT_HP, player_id=player.id)
 
-                return CreateGameResponse(game_token, player.id)
-            
-            elif isinstance(request, GetGameRequest):
-                return GetGameResponse(self._get_game(request.game_token))
-            
-            elif isinstance(request, JoinGameRequest):
-                game = self._get_game(request.game_token)
-                player = GameOp(game).add_player(request.player_name)
-                GameOp(game).spawn_unit(hp=PLAYER_CHAR_INIT_HP, player_id=player.id)
-                return JoinGameResponse(player.id)
+                    return CreateGameResponse(game_token, player.id)
 
-            else:
-                raise RuntimeError('Unknown request %s', type(request))
+                elif isinstance(request, GetGameRequest):
+                    return GetGameResponse(self._get_game(request.game_token))
+
+                elif isinstance(request, JoinGameRequest):
+                    game = self._get_game(request.game_token)
+                    player = GameOp(game).add_player(request.player_name)
+                    GameOp(game).spawn_unit(hp=PLAYER_CHAR_INIT_HP, player_id=player.id)
+                    return JoinGameResponse(player.id)
+
+                elif isinstance(request, MoveCharRequest):
+                    game = self._get_game(request.game_token)
+                    char = game.entities[request.unit_id]
+                    assert abs(char.x - request.x) <= 1 and abs(char.y - request.y) <= 1
+                    assert (char.x, char.y) in game.maze.free_cells - game.occupied_cells
+                    EntityOp(char).move(request.x, request.y)
+
+                else:
+                    raise RuntimeError('Unknown request %s', type(request))
+
+            except Exception as e:
+                logging.exception(e)
 
     def _create_game(self):
         game = Game()
