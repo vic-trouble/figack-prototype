@@ -14,7 +14,6 @@ def test_create_game_adds_player():
     assert client.game_token
     assert client.player_id
 
-    client.fetch_game()
     assert client.game.players[client.player_id].name == 'player'
 
 
@@ -31,7 +30,6 @@ def test_join_game_adds_player():
     # assert
     assert client2.player_id
 
-    client2.fetch_game()
     assert client2.game.players[client2.player_id].name == 'player2'
 
 
@@ -44,8 +42,6 @@ def test_create_game_puts_character_in_maze():
     client.create_game('player')
 
     # assert
-    client.fetch_game()
-
     my_entities = client.game.units_by_player[client.player_id]
     assert len(my_entities) == 1
 
@@ -60,8 +56,6 @@ def test_move_char():
     client = Client(server)
     client.create_game('player')
 
-    client.fetch_game()
-
     char = client.game.units_by_player[client.player_id][0]
 
     # act
@@ -69,5 +63,4 @@ def test_move_char():
     client.move_char(char.id, new_x, char.y)
 
     # assert
-    client.fetch_game()
     assert char.x == new_x

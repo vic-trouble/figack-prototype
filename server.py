@@ -8,6 +8,8 @@ from protocol import *
 
 PLAYER_CHAR_INIT_HP = 10
 
+logging.basicConfig(level=logging.DEBUG)
+
 
 class Server:
     def __init__(self):
@@ -40,7 +42,7 @@ class Server:
                     game = self._get_game(request.game_token)
                     char = game.entities[request.unit_id]
                     assert abs(char.x - request.x) <= 1 and abs(char.y - request.y) <= 1
-                    assert (char.x, char.y) in game.maze.free_cells - game.occupied_cells
+                    assert (request.x, request.y) in game.maze.free_cells - game.occupied_cells
                     EntityOp(char).move(request.x, request.y)
 
                 else:

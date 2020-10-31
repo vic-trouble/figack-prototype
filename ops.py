@@ -2,6 +2,7 @@ from copy import deepcopy
 import random
 
 from model import *
+from util import *
 
 
 class GameOp:
@@ -33,6 +34,28 @@ class GameOp:
         unit = Unit(unit_id, pos[0], pos[1], hp=hp, player_id=player_id)
         self._game.entities[unit_id] = unit
 
+    def update_from(self, game):
+        def update_dict(dest, source, op_class):
+            # existing
+            removed = []
+            for id, thing in dest.items():
+                if id in source:
+                    op_class(thing).update_from(source[id])
+                else:
+                    removed.append(id)
+
+            # new
+            for id in set(source.keys()) - set(dest.keys()):
+                dest[id] = source[id]
+
+            # removed
+            for id in removed:
+                del dest[id]
+
+        MazeOp(self._game.maze).update_from(game.maze)
+        update_dict(self._game.players, game.players, PlayerOp)
+        update_dict(self._game.entities, game.entities, EntityOp)
+
 
 class EntityOp:
     def __init__(self, entity):
@@ -41,3 +64,22 @@ class EntityOp:
     def move(self, x, y):
         self._entity.x = x
         self._entity.y = y
+
+    def update_from(self, entity):
+        object_update_from(self._entity, entity)
+
+
+class PlayerOp:
+    def __init__(self, player):
+        self._player = player
+
+    def update_from(self, player):
+        object_update_from(self._player, player)
+
+
+class MazeOp:
+    def __init__(self, maze):
+        self._maze = maze
+
+    def update_from(self, maze):
+        object_update_from(self._maze, maze)
