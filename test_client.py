@@ -29,8 +29,9 @@ def test_join_game_adds_player():
 
     # assert
     assert client2.player_id
-
     assert client2.game.players[client2.player_id].name == 'player2'
+
+    assert len(client1.game.players) == 2
 
 
 def test_create_game_puts_character_in_maze():
