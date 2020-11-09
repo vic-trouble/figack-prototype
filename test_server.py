@@ -1,23 +1,21 @@
-"""
-from client import Client
+import protocol
 from server import Server
 
 
 def test_create_game_adds_player():
     # arrange
     server = Server()
-    client = Client(server)
 
     # act
-    client.create_game('player')
+    response = server.serve(protocol.CreateGameRequest(player_name='player'))
 
     # assert
-    assert client.game_id
-    assert client.player_id
+    assert response.game_id
+    assert response.player_id
 
     assert client.game.players[client.player_id].name == 'player'
 
-
+"""
 def test_join_game_adds_player():
     # arrange
     server = Server()

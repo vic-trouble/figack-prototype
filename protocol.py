@@ -7,14 +7,14 @@ class CreateGameRequest:
 
 
 class CreateGameResponse:
-    def __init__(self, game_token=None, player_id=None):
-        self.game_token = game_token
+    def __init__(self, game_id=None, player_id=None):
+        self.game_id = game_id
         self.player_id = player_id
 
 
 class JoinGameRequest:
-    def __init__(self, game_token=None, player_name=None):
-        self.game_token = game_token
+    def __init__(self, game_id=None, player_name=None):
+        self.game_id = game_id
         self.player_name = player_name
 
 
@@ -24,8 +24,8 @@ class JoinGameResponse:
 
 
 class GetGameRequest:
-    def __init__(self, game_token=None, player_id=None):
-        self.game_token = game_token
+    def __init__(self, game_id=None, player_id=None):
+        self.game_id = game_id
         self.player_id = player_id
 
 
@@ -35,8 +35,8 @@ class GetGameResponse:
 
 
 class MoveCharRequest:
-    def __init__(self, game_token=None, player_id=None, unit_id=None, x=None, y=None):
-        self.game_token = game_token
+    def __init__(self, game_id=None, player_id=None, unit_id=None, x=None, y=None):
+        self.game_id = game_id
         self.player_id = player_id
         self.unit_id = unit_id
         self.x = x
