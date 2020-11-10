@@ -22,6 +22,7 @@ class Server:
 
     def connect(self, game_id, player_id): #, auth_token):
         with self._lock:
+            logging.debug('self._games = %s', self._games)
             assert game_id in self._games
             assert player_id in self._games[player_id].players
             conn_key = (game_id, player_id)
@@ -56,6 +57,8 @@ class Server:
                     game_id = self._next_game_id
                     self._next_game_id += 1
                     self._games[game_id] = game
+
+                    logging.debug('self._games = %s', self._games)
 
                     return CreateGameResponse(game_id, player.id)
 
