@@ -6,14 +6,15 @@ import json
 import logging
 
 from messaging import Codec
+import model
 import protocol
 from server import Server
 
 server = Server()
 
 codec = Codec()
-for message in (protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest):
-    codec.register(message)
+for obj in (protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, model.Game, model.Player, model.Maze, model.Unit):
+    codec.register(obj)
 
 
 async def handle_create(request):

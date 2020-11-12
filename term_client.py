@@ -9,7 +9,10 @@ import logging
 from client import Client
 from connection import Connection
 from messaging import Codec
+import model
 import protocol
+from threading import Thread, Lock
+import time
 
 
 async def async_main():
@@ -39,21 +42,32 @@ async def async_main():
         # create client
         connection = Connection()
         client = Client(game_id, player_id, connection)
+        client_lock = Lock()
+
+        render_thread = Thread(target=render, args=(client, client_lock))
+        render_thread.start()
 
         # connect
         codec = Codec()
-        for message in (protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest):
-            codec.register(message)
+        for obj in (protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, model.Game, model.Player, model.Maze, model.Unit):
+            codec.register(obj)
 
         logging.debug('Connecting...')
         async with session.ws_connect(f'http://localhost:8080/connect?game_id={game_id}&player_id={player_id}') as ws:
             logging.debug('Connected')
             logging.debug('DIR = %s', dir(ws))
+
+            client.fetch_game()
+            while connection.outgoing:
+                message = connection.outgoing.pop(0)
+                await ws.send_str(codec.encode(message))
+
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     message = codec.decode(msg.data)
                     connection.incoming.append(message)
-                    client.process_connection()
+                    with client_lock:
+                        client.process_connection()
                     while connection.outgoing:
                         message = connection.outgoing.pop(0)
                         await ws.send_str(codec.encode(message))
@@ -63,12 +77,23 @@ async def async_main():
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     logging.debug('Websocket error')
                     break
-                render(client)
+
+        # render_thread.join()
 
 
-def render(client):
-    print('-' * 80)
-    print('\n'.join(''.join(row) for row in client.game.maze.map))
+def render(client, lock):
+    fetch_count = -1
+    while True:
+        with lock:
+            if not client.game or client.fetch_count == fetch_count:
+                continue
+
+            fetch_count = client.fetch_count
+
+            print('-' * 80)
+            print('\n'.join(''.join(row) for row in client.game.maze.map))
+            time.sleep(1)
+
 
 
 def main():

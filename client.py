@@ -9,6 +9,7 @@ class Client:
         self.game = None
         self.game_id = game_id
         self.player_id = player_id
+        self.fetch_count = 0
 
     #def create_game(self, player_name):
     #    response = self.server.serve(CreateGameRequest(player_name))
@@ -25,6 +26,7 @@ class Client:
                 self.game = message.game
             else:
                 GameOp(self.game).update_from(message.game)
+            self.fetch_count += 1
 
     def process_connection(self):
         while self.connection.incoming:
