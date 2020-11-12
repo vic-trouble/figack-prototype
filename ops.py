@@ -21,9 +21,9 @@ class GameOp:
         for y in range(height):
             for x in range(width):
                 if y in (0, height - 1):
-                    cell = '|'
-                elif x in (0, width - 1):
                     cell = '-'
+                elif x in (0, width - 1):
+                    cell = '|'
                 else:
                     cell = '.'
                 self._game.maze.set(x, y, cell)
