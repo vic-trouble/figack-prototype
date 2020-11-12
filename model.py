@@ -6,7 +6,7 @@ class Maze:
         if map:
             self.map = map
         else:
-            assert width and height
+            # assert width and height
             self.map = [[' ' for _ in range(width)] for _ in range(height)]
 
     @property
@@ -29,7 +29,7 @@ class Maze:
 
 
 class MazeEntity:
-    def __init__(self, id, x, y, opaque=False):
+    def __init__(self, id=0, x=0, y=0, opaque=False):
         self.id = id
         self.x = x
         self.y = y
@@ -37,14 +37,14 @@ class MazeEntity:
 
 
 class Unit(MazeEntity):
-    def __init__(self, id, x, y, hp=0, player_id=0):
+    def __init__(self, id=0, x=0, y=0, hp=0, player_id=0):
         super().__init__(id, x, y, opaque=True)
         self.hp = hp
         self.player_id = player_id
 
 
 class Player:
-    def __init__(self, id, name):
+    def __init__(self, id=0, name=''):
         self.id = id
         self.name = name
 
