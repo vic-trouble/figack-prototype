@@ -50,7 +50,7 @@ async def write(ws, connection):
             message = connection.outgoing.pop(0)
             logging.debug('Sent %s', message)
             await ws.send_str(codec.encode(message))
-        await asyncio.sleep(1)
+        await asyncio.sleep(0)
 
 
 async def handle_connect(request):

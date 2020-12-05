@@ -37,7 +37,7 @@ async def write_socket(ws, codec, connection, lock):
             while connection.outgoing:
                 message = connection.outgoing.pop(0)
                 await ws.send_str(codec.encode(message))
-        await asyncio.sleep(1)
+        await asyncio.sleep(0)
 
 
 async def async_main():
@@ -146,7 +146,7 @@ def render(client, lock):
                 }[inp]
                 client.move_char(client.char.id, client.char.x + delta[0], client.char.y + delta[1])
 
-        time.sleep(0.5)
+        time.sleep(1 / 25)
 
 
 def main():
