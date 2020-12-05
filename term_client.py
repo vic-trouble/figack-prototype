@@ -2,6 +2,7 @@
 
 import asyncio
 import aiohttp
+import copy
 import logging
 #import requests
 #import websockets
@@ -90,10 +91,25 @@ def render(client, lock):
 
             fetch_count = client.fetch_count
 
+            render_map = copy.deepcopy(client.game.maze.map)
+            for ent in client.game.entities.values():
+                render_map[ent.y][ent.x] = '@'
             print('-' * 80)
-            print('\n'.join(''.join(row) for row in client.game.maze.map))
-            time.sleep(1)
+            print('\n'.join(''.join(row) for row in render_map))
+            # time.sleep(1)
 
+            print('AWSD? ', end='')
+            command = ''
+            while not command or command not in 'AWSD':
+                command = input().upper()
+
+            delta = {
+                'A': (-1, 0),
+                'W': (0, -1),
+                'S': (0, 1),
+                'D': (1, 0)
+            }[command]
+            client.move_char(client.char.id, client.char.x + delta[0], client.char.y + delta[1])
 
 
 def main():
