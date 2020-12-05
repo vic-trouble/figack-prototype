@@ -55,7 +55,7 @@ async def async_main():
         elif s == 'J':
             print('Enter game_id: ', end='')
             game_id = int(input())
-            async with session.get('http://localhost:8080/join', params={'name': 'player2'}) as response:
+            async with session.get('http://localhost:8080/join', params={'name': 'player2', 'game_id': game_id}) as response:
                 j = await response.json()
                 player_id = j['player_id']
         elif s == 'O':

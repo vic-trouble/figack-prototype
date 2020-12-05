@@ -24,7 +24,7 @@ class Server:
         with self._lock:
             logging.debug('self._games = %s', self._games)
             assert game_id in self._games
-            assert player_id in self._games[player_id].players
+            assert player_id in self._games[game_id].players
             conn_key = (game_id, player_id)
             assert conn_key not in self._connections
             conn = Connection()
