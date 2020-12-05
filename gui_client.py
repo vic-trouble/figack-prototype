@@ -2,10 +2,14 @@
 
 import asyncio
 import aiohttp
+from collections import defaultdict
 import copy
+import glob
 import logging
+import os
 import pygame
 from pygame.locals import *
+import random
 from threading import Thread, Lock, Event
 import time
 
@@ -101,7 +105,23 @@ async def async_main():
 
 
 def render(client, lock, stop_flag):
-    CELL_SIZE = 32
+    CELL_SIZE = 48
+
+    RESOURCES = defaultdict(list)
+    for filename in glob.glob('./art/*.png'):
+        img = pygame.image.load(filename)
+        key = os.path.splitext(os.path.split(filename)[-1])[0]
+        if '-' in key:
+            suffix = key.split('-')[-1]
+            try:
+                suffix = int(suffix)
+                key = key[:key.rfind('-')]
+            except ValueError:
+                pass
+        RESOURCES[key].append(img)
+    logging.debug('RESOURCES = %s', RESOURCES)
+
+    resources_map = {}
 
     screen = None
 
@@ -122,10 +142,34 @@ def render(client, lock, stop_flag):
             def draw_cell(x, y, color):
                 pygame.draw.rect(background, color, (CELL_SIZE * x, CELL_SIZE * y, CELL_SIZE, CELL_SIZE))
 
-            for y, row in enumerate(client.game.maze.map):
-                for x, cell in enumerate(row):
-                    color = {'.': (200, 200, 200), '|': (240, 240, 240), '-': (240, 240, 240)}[cell]
-                    draw_cell(x, y, color)
+            maze = client.game.maze
+            for y in range(maze.height):
+                for x in range(maze.width):
+                    cell = maze.get(x, y)
+                    res_key = (cell, x, y)
+                    if res_key not in resources_map:
+                        tile = None
+                        if cell == '.':
+                            tile = 'floor'
+                        elif cell == '-':
+                            if y == 0:
+                                if x == 0:
+                                    tile = 'wall-ul'
+                                elif x == maze.width - 1:
+                                    tile = 'wall-ur'
+                            elif y == maze.height - 1:
+                                if x == 0:
+                                    tile = 'wall-dl'
+                                elif x == maze.width - 1:
+                                    tile = 'wall-dr'
+                            if not tile:
+                                tile = 'wall-h'
+                        elif cell == '|':
+                            tile = 'wall-v'
+                        if tile:
+                            res_img = random.choice(RESOURCES[tile])
+                            resources_map[res_key] = res_img
+                    background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
 
             for entity in client.game.entities.values():
                 color = (255, 255, 255)
