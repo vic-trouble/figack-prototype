@@ -36,6 +36,14 @@ class Server:
             conn_key = (game_id, player_id)
             return self._connections.get(conn_key)
 
+    def get_connections(self, game_id):
+        with self._lock:
+            return list(conn for conn_key, conn in self._connections.items() if conn_key[0] == game_id)
+
+    def get_game(self, game_id):
+        with self._lock:
+            return self._games[game_id]
+
     def process_connections(self):
         with self._lock:
             for conn in self._connections.values():

@@ -33,13 +33,15 @@ async def handle_join(request):
     return aiohttp.web.json_response({'player_id': response.player_id})
 
 
-async def read(ws, connection, server):
+async def read(ws, connection, server, game_id):
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
             request = codec.decode(msg.data)
             logging.debug('Got %s', request)
             connection.incoming.append(request)
             server.process_connections()  # TODO: do it somewhere outside
+            for conn in server.get_connections(game_id):
+                conn.outgoing.append(protocol.GetGameResponse(server.get_game(game_id)))
         elif msg.type == aiohttp.WSMsgType.ERROR:
             logging.exception(ws.exception())
 
@@ -63,7 +65,7 @@ async def handle_connect(request):
     ws = aiohttp.web.WebSocketResponse()
     await ws.prepare(request)
 
-    read_task = asyncio.create_task(read(ws, connection, server))
+    read_task = asyncio.create_task(read(ws, connection, server, game_id))
     write_task = asyncio.create_task(write(ws, connection))
     await asyncio.gather(read_task, write_task)
 

@@ -41,7 +41,6 @@ class Client:
 
     def move_char(self, unit_id, x, y):
         self.connection.outgoing.append(MoveCharRequest(self.game_id, self.player_id, unit_id, x, y))
-        self.fetch_game()
 
     @property
     def char(self):
