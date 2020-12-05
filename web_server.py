@@ -2,6 +2,7 @@
 
 import aiohttp
 import aiohttp.web
+import asyncio
 import json
 import logging
 
@@ -32,6 +33,26 @@ async def handle_join(request):
     return aiohttp.web.json_response({'player_id': response.player_id})
 
 
+async def read(ws, connection, server):
+    async for msg in ws:
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            request = codec.decode(msg.data)
+            logging.debug('Got %s', request)
+            connection.incoming.append(request)
+            server.process_connections()  # TODO: do it somewhere outside
+        elif msg.type == aiohttp.WSMsgType.ERROR:
+            logging.exception(ws.exception())
+
+
+async def write(ws, connection):
+    while True:
+        while connection.outgoing:
+            message = connection.outgoing.pop(0)
+            logging.debug('Sent %s', message)
+            await ws.send_str(codec.encode(message))
+        await asyncio.sleep(1)
+
+
 async def handle_connect(request):
     game_id = int(request.rel_url.query['game_id'])
     player_id = int(request.rel_url.query['player_id'])
@@ -42,16 +63,9 @@ async def handle_connect(request):
     ws = aiohttp.web.WebSocketResponse()
     await ws.prepare(request)
 
-    async for msg in ws:
-        if msg.type == aiohttp.WSMsgType.TEXT:
-            request = codec.decode(msg.data)
-            connection.incoming.append(request)
-            server.process_connections()  # TODO: do it somewhere outside
-            while connection.outgoing:
-                message = connection.outgoing.pop(0)
-                await ws.send_str(codec.encode(message))
-        elif msg.type == aiohttp.WSMsgType.ERROR:
-            logging.exception(ws.exception())
+    read_task = asyncio.create_task(read(ws, connection, server))
+    write_task = asyncio.create_task(write(ws, connection))
+    await asyncio.gather(read_task, write_task)
 
     logging.debug('websocket connection closed')
     return ws
@@ -60,7 +74,8 @@ async def handle_connect(request):
 def main():
     logging.basicConfig(level=logging.DEBUG)
 
-    app = aiohttp.web.Application()
+    loop = asyncio.get_event_loop()
+    app = aiohttp.web.Application(loop=loop)
     app.router.add_get('/create', handle_create)
     app.router.add_get('/join', handle_join)
     app.router.add_get('/connect', handle_connect)
