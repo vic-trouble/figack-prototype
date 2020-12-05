@@ -6,7 +6,7 @@ import copy
 import logging
 import pygame
 from pygame.locals import *
-from threading import Thread, Lock
+from threading import Thread, Lock, Event
 import time
 
 from client import Client
@@ -32,12 +32,17 @@ async def read_socket(ws, codec, connection, lock, client):
 
 
 async def write_socket(ws, codec, connection, lock):
-    while True:
+    while not ws.closed:
         with lock:
             while connection.outgoing:
                 message = connection.outgoing.pop(0)
                 await ws.send_str(codec.encode(message))
         await asyncio.sleep(0)
+
+
+async def wait_stop_flag(stop_flag, ws):
+    await asyncio.to_thread(stop_flag.wait)
+    await ws.close()
 
 
 async def async_main():
@@ -69,7 +74,9 @@ async def async_main():
         client = Client(game_id, player_id, connection)
         client_lock = Lock()
 
-        render_thread = Thread(target=render, args=(client, client_lock))
+        stop_flag = Event()
+
+        render_thread = Thread(target=render, args=(client, client_lock, stop_flag))
         render_thread.start()
 
         # connect
@@ -86,21 +93,26 @@ async def async_main():
 
             read_task = asyncio.create_task(read_socket(ws, codec, connection, client_lock, client))
             write_task = asyncio.create_task(write_socket(ws, codec, connection, client_lock))
-            await asyncio.gather(read_task, write_task)
+            wait_stop_task = asyncio.create_task(wait_stop_flag(stop_flag, ws))
+            await asyncio.gather(read_task, write_task, wait_stop_task)
 
+        stop_flag.set()
         render_thread.join()
 
 
-def render(client, lock):
+def render(client, lock, stop_flag):
     CELL_SIZE = 32
 
-    pygame.init()
-    screen = pygame.display.set_mode((1024, 768))
+    screen = None
 
-    while True:
+    while not stop_flag.is_set():
         with lock:
             if not client.game:
                 continue
+
+            if not pygame.get_init():
+                pygame.init()
+                screen = pygame.display.set_mode((CELL_SIZE * client.game.maze.width, CELL_SIZE * client.game.maze.height))
 
             # Fill background
             background = pygame.Surface(screen.get_size())
@@ -128,7 +140,7 @@ def render(client, lock):
             inp = None
             for event in pygame.event.get():
                 if event.type == QUIT:
-                    return
+                    stop_flag.set()
                 elif event.type == KEYDOWN:
                     if event.key == K_DOWN:
                         inp = 'S'
@@ -139,7 +151,7 @@ def render(client, lock):
                     elif event.key == K_RIGHT:
                         inp = 'D'
                     elif event.key == K_ESCAPE:
-                        return
+                        stop_flag.set()
 
             if inp:
                 delta = {
@@ -152,11 +164,13 @@ def render(client, lock):
 
         time.sleep(1 / 25)
 
+    pygame.quit()
+
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
     #asyncio.get_event_loop().run_until_complete(async_main())
-    asyncio.run(async_main(), debug=True)
+    asyncio.run(async_main()) #, debug=True)
 
 
 if __name__ == '__main__':
