@@ -115,7 +115,11 @@ def render(client, lock):
                     color = {'.': (200, 200, 200), '|': (240, 240, 240), '-': (240, 240, 240)}[cell]
                     draw_cell(x, y, color)
 
-            draw_cell(client.char.x, client.char.y, (240, 0, 0))
+            for entity in client.game.entities.values():
+                color = (255, 255, 255)
+                if isinstance(entity, model.Unit):
+                    color = (0, 240, 0) if entity.player_id == client.player_id else (240, 0, 0)
+                draw_cell(entity.x, entity.y, color)
 
             # Blit everything to the screen
             screen.blit(background, (0, 0))
