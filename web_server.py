@@ -16,7 +16,7 @@ server = Server()
 codec = Codec()
 for obj in (\
         protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
-        model.Game, model.Player, model.Maze, model.Unit, model.Grave):
+        model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects):
     codec.register(obj)
 
 
@@ -44,6 +44,7 @@ async def read(ws, connection, server, game_id):
             server.process_connections()  # TODO: do it somewhere outside
             for conn in server.get_connections(game_id):
                 conn.outgoing.append(protocol.GetGameResponse(server.get_game(game_id)))
+            server.get_game(game_id).next_tick()
         elif msg.type == aiohttp.WSMsgType.ERROR:
             logging.exception(ws.exception())
 

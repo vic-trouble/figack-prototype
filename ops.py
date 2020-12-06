@@ -157,8 +157,9 @@ class UnitOp:
     def __init__(self, unit):
         self._unit = unit
 
-    def take_damage(self, damage):
+    def take_damage(self, damage, tick):
         self._unit.hp = max(self._unit.hp - damage, 0)
+        self._unit.effects.hit_tick = tick
 
     def update_from(self, unit):
         object_update_from(self._unit, unit)

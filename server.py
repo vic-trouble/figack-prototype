@@ -92,7 +92,7 @@ class Server:
                     char = game.entities[request.unit_id]
                     assert abs(char.x - request.x) <= 1 and abs(char.y - request.y) <= 1
                     target = next(unit for unit in game.units if (unit.x, unit.y) == (request.x, request.y))
-                    UnitOp(target).take_damage(char.damage)
+                    UnitOp(target).take_damage(char.damage, game.tick)
                     if target.dead:
                         GameOp(game).add_entity(Grave(x=target.x, y=target.y))
                         GameOp(game).remove_entity(target)

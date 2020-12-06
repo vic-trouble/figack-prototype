@@ -14,7 +14,7 @@ class Codec:
         self._rev[message_class] = id
 
     def _encode(self, obj):
-        if isinstance(obj, (int, float, bool, str)):
+        if obj is None or isinstance(obj, (int, float, bool, str)):
             return obj
         elif isinstance(obj, list):
             return [self._encode(v) for v in obj]
@@ -27,7 +27,7 @@ class Codec:
         return json.dumps(self._encode(message))
 
     def _decode(self, obj):
-        if isinstance(obj, (int, float, bool, str)):
+        if obj is None or isinstance(obj, (int, float, bool, str)):
             return obj
         elif isinstance(obj, list):
             return [self._decode(v) for v in obj]

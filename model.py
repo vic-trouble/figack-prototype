@@ -28,12 +28,18 @@ class Maze:
         return set((x, y) for x in range(self.width) for y in range(self.height) if self.get(x, y) == '.')
 
 
+class Effects:
+    def __init__(self, hit_tick=None):
+        self.hit_tick = hit_tick
+
+
 class MazeEntity:
-    def __init__(self, id=0, x=0, y=0, opaque=False):
+    def __init__(self, id=0, x=0, y=0, opaque=False, effects=None):
         self.id = id
         self.x = x
         self.y = y
         self.opaque = opaque
+        self.effects = effects or Effects()
 
 
 class Grave(MazeEntity):
@@ -60,11 +66,15 @@ class Player:
 
 
 class Game:
-    def __init__(self, maze=None, entities=None, players=None):
+    def __init__(self, maze=None, entities=None, players=None, tick=1):
         self.maze = maze
         self.entities = entities or {}
         self.players = players or {}
         self.next_entity_id = 1
+        self.tick = tick
+
+    def next_tick(self):
+        self.tick += 1
 
     def issue_entity_id(self):
         entity_id = self.next_entity_id

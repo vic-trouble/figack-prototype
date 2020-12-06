@@ -88,7 +88,7 @@ async def async_main():
         codec = Codec()
         for obj in ( \
                 protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
-                model.Game, model.Player, model.Maze, model.Unit, model.Grave):
+                model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects):
             codec.register(obj)
 
         logging.debug('Connecting...')
@@ -110,6 +110,7 @@ async def async_main():
 def render(client, lock, stop_flag):
     try:
         CELL_SIZE = 48
+        EFFECT_WEAR_OUT = 0.25
 
         RESOURCES = defaultdict(list)
         def load_resources():
@@ -128,6 +129,7 @@ def render(client, lock, stop_flag):
         resources_map = {} # id -> img
         resources_units = {} # id -> (left_img, right_img)
         unit_direction = defaultdict(int)
+        tick_to_time = {} # tick -> time TODO: leaking here
 
         screen = None
 
@@ -200,6 +202,12 @@ def render(client, lock, stop_flag):
                     background.blit(resources_units[unit.id][unit_direction[unit.id]], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
                     if unit.player_id == client.player_id:
                         pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * unit.x, CELL_SIZE * unit.y, CELL_SIZE, CELL_SIZE), width=1)
+                    if unit.effects.hit_tick:
+                        now = time.time()
+                        if unit.effects.hit_tick not in tick_to_time:
+                            tick_to_time[unit.effects.hit_tick] = now
+                        if now - tick_to_time[unit.effects.hit_tick] < EFFECT_WEAR_OUT:
+                            background.blit(RESOURCES['bang'][0], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
 
                 # Blit everything to the screen
                 screen.blit(background, (0, 0))
