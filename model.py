@@ -36,11 +36,21 @@ class MazeEntity:
         self.opaque = opaque
 
 
+class Grave(MazeEntity):
+    def __init__(self, id=0, x=0, y=0):
+        super().__init__(id=id, x=x, y=y)
+
+
 class Unit(MazeEntity):
-    def __init__(self, id=0, x=0, y=0, hp=0, player_id=0):
-        super().__init__(id, x, y, opaque=True)
+    def __init__(self, id=0, x=0, y=0, hp=0, damage=0, player_id=0):
+        super().__init__(id=id, x=x, y=y, opaque=True)
         self.hp = hp
+        self.damage = damage
         self.player_id = player_id
+
+    @property
+    def dead(self):
+        return self.hp <= 0
 
 
 class Player:
@@ -54,14 +64,24 @@ class Game:
         self.maze = maze
         self.entities = entities or {}
         self.players = players or {}
+        self.next_entity_id = 1
+
+    def issue_entity_id(self):
+        entity_id = self.next_entity_id
+        self.next_entity_id += 1
+        return entity_id
 
     @property
     def units_by_player(self):
         r = defaultdict(list)
-        for entity in self.entities.values():
-            if isinstance(entity, Unit) and entity.player_id:
-                r[entity.player_id].append(entity)
+        for unit in self.units:
+            if unit.player_id:
+                r[unit.player_id].append(unit)
         return r
+
+    @property
+    def units(self):
+        yield from (entity for entity in self.entities.values() if isinstance(entity, Unit))
 
     @property
     def occupied_cells(self):

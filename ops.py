@@ -28,11 +28,18 @@ class GameOp:
                     cell = '.'
                 self._game.maze.set(x, y, cell)
 
-    def spawn_unit(self, hp=1, player_id=0):
+    def spawn_unit(self, unit):
         pos = random.choice(list(self._game.maze.free_cells - self._game.occupied_cells))
-        unit_id = len(self._game.entities) + 1
-        unit = Unit(unit_id, pos[0], pos[1], hp=hp, player_id=player_id)
-        self._game.entities[unit_id] = unit
+        unit.x = pos[0]
+        unit.y = pos[1]
+        self.add_entity(unit)
+
+    def add_entity(self, entity):
+        entity.id = self._game.issue_entity_id()
+        self._game.entities[entity.id] = entity
+
+    def remove_entity(self, entity):
+        del self._game.entities[entity.id]
 
     def update_from(self, game):
         def update_dict(dest, source, op_class):
@@ -67,6 +74,17 @@ class EntityOp:
 
     def update_from(self, entity):
         object_update_from(self._entity, entity)
+
+
+class UnitOp:
+    def __init__(self, unit):
+        self._unit = unit
+
+    def take_damage(self, damage):
+        self._unit.hp = max(self._unit.hp - damage, 0)
+
+    def update_from(self, unit):
+        object_update_from(self._unit, unit)
 
 
 class PlayerOp:

@@ -14,7 +14,9 @@ from server import Server
 server = Server()
 
 codec = Codec()
-for obj in (protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, model.Game, model.Player, model.Maze, model.Unit):
+for obj in (\
+        protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, \
+        model.Game, model.Player, model.Maze, model.Unit, model.Grave):
     codec.register(obj)
 
 

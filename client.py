@@ -44,4 +44,7 @@ class Client:
 
     @property
     def char(self):
-        return next(iter(self.game.units_by_player[self.player_id]))
+        return next(iter(self.game.units_by_player[self.player_id]), None)
+
+    def attack(self, unit_id, x, y):
+        self.connection.outgoing.append(AttackRequest(self.game_id, self.player_id, unit_id, x, y))

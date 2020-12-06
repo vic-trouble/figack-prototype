@@ -86,7 +86,9 @@ async def async_main():
 
         # connect
         codec = Codec()
-        for obj in (protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, model.Game, model.Player, model.Maze, model.Unit):
+        for obj in ( \
+                protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, \
+                model.Game, model.Player, model.Maze, model.Unit, model.Grave):
             codec.register(obj)
 
         logging.debug('Connecting...')
@@ -172,13 +174,20 @@ def render(client, lock, stop_flag):
                             resources_map[res_key] = res_img
                     background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
 
-            for entity in client.game.entities.values():
-                if entity.id not in resources_units:
-                    res_index = hash((client.game_id, entity.id)) % len(RESOURCES['hero'])
-                    resources_units[entity.id] = RESOURCES['hero'][res_index]
-                background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
-                if entity.player_id == client.player_id:
-                    pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * entity.x, CELL_SIZE * entity.y, CELL_SIZE, CELL_SIZE), width=1)
+            # first pass for non-units
+            for entity in (e for e in client.game.entities.values() if not isinstance(e, model.Unit)):
+                if isinstance(entity, model.Grave):
+                    resources_units[entity.id] = random.choice(RESOURCES['bones'])
+                    background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
+
+            # second pass for units
+            for unit in (e for e in client.game.entities.values() if isinstance(e, model.Unit)):
+                if unit.id not in resources_units:
+                    res_index = hash((client.game_id, unit.id)) % len(RESOURCES['hero'])
+                    resources_units[unit.id] = RESOURCES['hero'][res_index]
+                background.blit(resources_units[unit.id], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
+                if unit.player_id == client.player_id:
+                    pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * unit.x, CELL_SIZE * unit.y, CELL_SIZE, CELL_SIZE), width=1)
 
             # Blit everything to the screen
             screen.blit(background, (0, 0))
@@ -200,14 +209,20 @@ def render(client, lock, stop_flag):
                     elif event.key == K_ESCAPE:
                         stop_flag.set()
 
-            if inp:
+            if inp and client.char:
                 delta = {
                     'A': (-1, 0),
                     'W': (0, -1),
                     'S': (0, 1),
                     'D': (1, 0)
                 }[inp]
-                client.move_char(client.char.id, client.char.x + delta[0], client.char.y + delta[1])
+                new_char_x = client.char.x + delta[0]
+                new_char_y = client.char.y + delta[1]
+                target = next((unit for unit in client.game.units if (unit.x, unit.y) == (new_char_x, new_char_y)), None)
+                if target:
+                    client.attack(client.char.id, new_char_x, new_char_y)
+                else:
+                    client.move_char(client.char.id, new_char_x, new_char_y)
 
         time.sleep(1 / 25)
 
