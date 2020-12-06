@@ -1,4 +1,5 @@
 from copy import deepcopy
+import logging
 import random
 
 from model import *
@@ -28,10 +29,69 @@ class GameOp:
                     cell = '.'
                 self._game.maze.set(x, y, cell)
 
-        # now split
-        split_y = random.randint(2, height - 3)
-        for x in range(width):
-            self._game.maze.set(x, split_y, '-')
+        def split(start_x, start_y, width, height, horz=True, depth=1):
+            if not depth:
+                return
+
+            if horz:
+                if height < 5 or width < 3:
+                    return
+
+                # split
+                split_y = random.randint(2, height - 3)
+                for x in range(width):
+                    self._game.maze.set(start_x + x, start_y + split_y, '-')
+
+                # add a door
+                door_x = random.randint(1, width - 2)
+                self._game.maze.set(start_x + door_x, start_y + split_y, '+')
+
+                # subsplit
+                if door_x < width // 2:
+                    subsplit_x = door_x + 1
+                    subwidth = width - subsplit_x
+                else:
+                    subsplit_x = start_x
+                    subwidth = door_x - 1 - subsplit_x
+
+                if split_y < height // 2:
+                    subsplit_y = split_y
+                    subheight = height - subsplit_y
+                else:
+                    subsplit_y = start_y
+                    subheight = split_y - start_y
+                split(subsplit_x, subsplit_y, subwidth, subheight, not horz, depth-1)
+
+            else:
+                if width < 5 or height < 3:
+                    return
+
+                # split
+                split_x = random.randint(2, width - 3)
+                for y in range(height):
+                    self._game.maze.set(start_x + split_x, start_y + y, '|')
+
+                # add a door
+                door_y = random.randint(1, height - 2)
+                self._game.maze.set(start_x + split_x, start_y + door_y, '+')
+
+                # subsplit
+                if door_y < height // 2:
+                    subsplit_y = door_y + 1
+                    subheight = height - subsplit_y
+                else:
+                    subsplit_y = start_y
+                    subheight = door_y - 1 - subsplit_y
+
+                if split_x < width // 2:
+                    subsplit_x = split_x
+                    subwidth = width - subsplit_x
+                else:
+                    subsplit_x = start_x
+                    subwidth = split_x - start_x
+                split(subsplit_x, subsplit_y, subwidth, subheight, not horz, depth-1)
+
+        split(0, 0, width, height, horz=bool(random.randint(0, 1)), depth=random.randint(1, 3))
 
         # add random obstacles
         for i in range(random.randint(0, 5)):
@@ -43,9 +103,7 @@ class GameOp:
             else:
                 self._game.maze.set(x, y, '-')
 
-        # add a door
-        door_x = random.randint(1, width - 2)
-        self._game.maze.set(door_x, split_y, '+')
+        logging.debug('generated maze: \n%s', '\n'.join(''.join(row) for row in self._game.maze.map))
 
     def spawn_unit(self, unit):
         pos = random.choice(list(self._game.maze.free_cells - self._game.occupied_cells))
