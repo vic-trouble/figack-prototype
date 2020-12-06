@@ -87,7 +87,7 @@ async def async_main():
         # connect
         codec = Codec()
         for obj in ( \
-                protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, \
+                protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
                 model.Game, model.Player, model.Maze, model.Unit, model.Grave):
             codec.register(obj)
 
@@ -155,22 +155,32 @@ def render(client, lock, stop_flag):
                             tile = None
                             if cell == '.':
                                 tile = 'floor'
-                            elif cell == '-':
-                                if y == 0:
-                                    if x == 0:
-                                        tile = 'wall-ul'
-                                    elif x == maze.width - 1:
-                                        tile = 'wall-ur'
-                                elif y == maze.height - 1:
-                                    if x == 0:
-                                        tile = 'wall-dl'
-                                    elif x == maze.width - 1:
-                                        tile = 'wall-dr'
-                                if not tile:
-                                    tile = 'wall-h'
-                            elif cell == '|':
-                                tile = 'wall-v'
+                            elif cell == '+':
+                                tile = 'door-closed'
+                            elif cell in '-|':
+                                u = y > 0 and maze.get(x, y - 1) in '-|'
+                                d = y < maze.height - 1 and maze.get(x, y + 1) in '-|'
+                                l = x > 0 and maze.get(x - 1, y) in '-|'
+                                r = x < maze.width - 1 and maze.get(x + 1, y) in '-|'
+                                tile = 'wall' + {
+                                    (False, False, False, False): '',
+                                    (True,  True,  False, False): '-v',
+                                    (True,  False, False, False): '-v',
+                                    (False, True,  False, False): '-v',
+                                    (False, False, True,  True ): '-h',
+                                    (False, False, True,  False): '-h',
+                                    (False, False, False, True ): '-h',
+                                    (True,  False, True,  False): '-dr',
+                                    (True,  False, False, True ): '-dl',
+                                    (False, True,  True,  False): '-ur',
+                                    (False, True,  False, True ): '-ul',
+                                    (True,  True,  False, True ): '-vr',
+                                    (True,  True,  True,  False): '-vl',
+                                    (False, True,  True,  True ): '-hd',
+                                    (True,  False, True,  True ): '-hu',
+                                }[(u, d, l, r)]
                             if tile:
+                                assert RESOURCES[tile], tile
                                 res_img = random.choice(RESOURCES[tile])
                                 resources_map[res_key] = res_img
                         background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
@@ -225,6 +235,8 @@ def render(client, lock, stop_flag):
                     target = next((unit for unit in client.game.units if (unit.x, unit.y) == (new_char_x, new_char_y)), None)
                     if target:
                         client.attack(client.char.id, new_char_x, new_char_y)
+                    elif client.game.maze.get(new_char_x, new_char_y) == '+':
+                        client.open_door(client.char.id, new_char_x, new_char_y)
                     else:
                         client.move_char(client.char.id, new_char_x, new_char_y)
 

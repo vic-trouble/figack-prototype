@@ -90,11 +90,19 @@ class Server:
                 elif isinstance(request, AttackRequest):
                     game = self._games[request.game_id]
                     char = game.entities[request.unit_id]
+                    assert abs(char.x - request.x) <= 1 and abs(char.y - request.y) <= 1
                     target = next(unit for unit in game.units if (unit.x, unit.y) == (request.x, request.y))
                     UnitOp(target).take_damage(char.damage)
                     if target.dead:
                         GameOp(game).add_entity(Grave(x=target.x, y=target.y))
                         GameOp(game).remove_entity(target)
+
+                elif isinstance(request, OpenRequest):
+                    game = self._games[request.game_id]
+                    char = game.entities[request.unit_id]
+                    assert abs(char.x - request.x) <= 1 and abs(char.y - request.y) <= 1
+                    assert game.maze.get(request.x, request.y) == '+'
+                    MazeOp(game.maze).open_door(request.x, request.y)
 
                 else:
                     raise RuntimeError('Unknown request %s', type(request))

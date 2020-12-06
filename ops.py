@@ -16,7 +16,7 @@ class GameOp:
 
     def init(self):
         width = random.randint(10, 20)
-        height = random.randint(5, 15)
+        height = random.randint(10, 15)
         self._game.maze = Maze(width, height)
         for y in range(height):
             for x in range(width):
@@ -27,6 +27,25 @@ class GameOp:
                 else:
                     cell = '.'
                 self._game.maze.set(x, y, cell)
+
+        # now split
+        split_y = random.randint(2, height - 3)
+        for x in range(width):
+            self._game.maze.set(x, split_y, '-')
+
+        # add random obstacles
+        for i in range(random.randint(0, 5)):
+            x = random.randint(1, width - 2)
+            y = random.randint(1, height - 2)
+            for delta in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                if self._game.maze.get(x + delta[0], y + delta[1]) != '.':
+                    break
+            else:
+                self._game.maze.set(x, y, '-')
+
+        # add a door
+        door_x = random.randint(1, width - 2)
+        self._game.maze.set(door_x, split_y, '+')
 
     def spawn_unit(self, unit):
         pos = random.choice(list(self._game.maze.free_cells - self._game.occupied_cells))
@@ -101,3 +120,6 @@ class MazeOp:
 
     def update_from(self, maze):
         object_update_from(self._maze, maze)
+
+    def open_door(self, x, y):
+        self._maze.set(x, y, '.')

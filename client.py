@@ -48,3 +48,6 @@ class Client:
 
     def attack(self, unit_id, x, y):
         self.connection.outgoing.append(AttackRequest(self.game_id, self.player_id, unit_id, x, y))
+
+    def open_door(self, unit_id, x, y):
+        self.connection.outgoing.append(OpenRequest(self.game_id, self.player_id, unit_id, x, y))
