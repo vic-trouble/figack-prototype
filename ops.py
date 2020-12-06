@@ -15,8 +15,8 @@ class GameOp:
         return player
 
     def init(self):
-        width = random.randint(10, 40)
-        height = random.randint(5, 25)
+        width = random.randint(10, 20)
+        height = random.randint(5, 15)
         self._game.maze = Maze(width, height)
         for y in range(height):
             for x in range(width):

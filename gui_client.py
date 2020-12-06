@@ -61,6 +61,7 @@ async def async_main():
                 j = await response.json()
                 game_id = j['game_id']
                 player_id = j['player_id']
+                logging.debug('Created game %s', game_id)
         elif s == 'J':
             print('Enter game_id: ', end='')
             game_id = int(input())
