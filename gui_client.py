@@ -108,20 +108,22 @@ def render(client, lock, stop_flag):
     CELL_SIZE = 48
 
     RESOURCES = defaultdict(list)
-    for filename in glob.glob('./art/*.png'):
-        img = pygame.image.load(filename)
-        key = os.path.splitext(os.path.split(filename)[-1])[0]
-        if '-' in key:
-            suffix = key.split('-')[-1]
-            try:
-                suffix = int(suffix)
-                key = key[:key.rfind('-')]
-            except ValueError:
-                pass
-        RESOURCES[key].append(img)
-    logging.debug('RESOURCES = %s', RESOURCES)
+    def load_resources():
+        for filename in glob.glob('./art/*.png'):
+            img = pygame.image.load(filename).convert_alpha()
+            key = os.path.splitext(os.path.split(filename)[-1])[0]
+            if '-' in key:
+                suffix = key.split('-')[-1]
+                try:
+                    suffix = int(suffix)
+                    key = key[:key.rfind('-')]
+                except ValueError:
+                    pass
+            RESOURCES[key].append(img)
+        logging.debug('RESOURCES = %s', RESOURCES)
 
     resources_map = {}
+    resources_units = {}
 
     screen = None
 
@@ -133,14 +135,12 @@ def render(client, lock, stop_flag):
             if not pygame.get_init():
                 pygame.init()
                 screen = pygame.display.set_mode((CELL_SIZE * client.game.maze.width, CELL_SIZE * client.game.maze.height))
+                load_resources()
 
             # Fill background
             background = pygame.Surface(screen.get_size())
             background = background.convert()
             background.fill((0, 0, 0))
-
-            def draw_cell(x, y, color):
-                pygame.draw.rect(background, color, (CELL_SIZE * x, CELL_SIZE * y, CELL_SIZE, CELL_SIZE))
 
             maze = client.game.maze
             for y in range(maze.height):
@@ -172,10 +172,12 @@ def render(client, lock, stop_flag):
                     background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
 
             for entity in client.game.entities.values():
-                color = (255, 255, 255)
-                if isinstance(entity, model.Unit):
-                    color = (0, 240, 0) if entity.player_id == client.player_id else (240, 0, 0)
-                draw_cell(entity.x, entity.y, color)
+                if entity.id not in resources_units:
+                    res_index = hash((client.game_id, entity.id)) % len(RESOURCES['hero'])
+                    resources_units[entity.id] = RESOURCES['hero'][res_index]
+                background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
+                if entity.player_id == client.player_id:
+                    pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * entity.x, CELL_SIZE * entity.y, CELL_SIZE, CELL_SIZE), width=1)
 
             # Blit everything to the screen
             screen.blit(background, (0, 0))
