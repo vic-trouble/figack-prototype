@@ -108,125 +108,130 @@ async def async_main():
 
 
 def render(client, lock, stop_flag):
-    CELL_SIZE = 48
+    try:
+        CELL_SIZE = 48
 
-    RESOURCES = defaultdict(list)
-    def load_resources():
-        for filename in glob.glob('./art/*.png'):
-            img = pygame.image.load(filename).convert_alpha()
-            key = os.path.splitext(os.path.split(filename)[-1])[0]
-            if '-' in key:
-                suffix = key.split('-')[-1]
-                try:
-                    suffix = int(suffix)
-                    key = key[:key.rfind('-')]
-                except ValueError:
-                    pass
-            RESOURCES[key].append(img)
-        logging.debug('RESOURCES = %s', RESOURCES)
+        RESOURCES = defaultdict(list)
+        def load_resources():
+            for filename in glob.glob('./art/*.png'):
+                img = pygame.image.load(filename).convert_alpha()
+                key = os.path.splitext(os.path.split(filename)[-1])[0]
+                if '-' in key:
+                    suffix = key.split('-')[-1]
+                    try:
+                        suffix = int(suffix)
+                        key = key[:key.rfind('-')]
+                    except ValueError:
+                        pass
+                RESOURCES[key].append(img)
 
-    resources_map = {}
-    resources_units = {}
+        resources_map = {} # id -> img
+        resources_units = {} # id -> (left_img, right_img)
+        unit_direction = defaultdict(int)
 
-    screen = None
+        screen = None
 
-    while not stop_flag.is_set():
-        with lock:
-            if not client.game:
-                continue
+        while not stop_flag.is_set():
+            with lock:
+                if not client.game:
+                    continue
 
-            if not pygame.get_init():
-                pygame.init()
-                screen = pygame.display.set_mode((CELL_SIZE * client.game.maze.width, CELL_SIZE * client.game.maze.height))
-                load_resources()
+                if not pygame.get_init():
+                    pygame.init()
+                    screen = pygame.display.set_mode((CELL_SIZE * client.game.maze.width, CELL_SIZE * client.game.maze.height))
+                    load_resources()
 
-            # Fill background
-            background = pygame.Surface(screen.get_size())
-            background = background.convert()
-            background.fill((0, 0, 0))
+                # Fill background
+                background = pygame.Surface(screen.get_size())
+                background = background.convert()
+                background.fill((0, 0, 0))
 
-            maze = client.game.maze
-            for y in range(maze.height):
-                for x in range(maze.width):
-                    cell = maze.get(x, y)
-                    res_key = (cell, x, y)
-                    if res_key not in resources_map:
-                        tile = None
-                        if cell == '.':
-                            tile = 'floor'
-                        elif cell == '-':
-                            if y == 0:
-                                if x == 0:
-                                    tile = 'wall-ul'
-                                elif x == maze.width - 1:
-                                    tile = 'wall-ur'
-                            elif y == maze.height - 1:
-                                if x == 0:
-                                    tile = 'wall-dl'
-                                elif x == maze.width - 1:
-                                    tile = 'wall-dr'
-                            if not tile:
-                                tile = 'wall-h'
-                        elif cell == '|':
-                            tile = 'wall-v'
-                        if tile:
-                            res_img = random.choice(RESOURCES[tile])
-                            resources_map[res_key] = res_img
-                    background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
+                maze = client.game.maze
+                for y in range(maze.height):
+                    for x in range(maze.width):
+                        cell = maze.get(x, y)
+                        res_key = (cell, x, y)
+                        if res_key not in resources_map:
+                            tile = None
+                            if cell == '.':
+                                tile = 'floor'
+                            elif cell == '-':
+                                if y == 0:
+                                    if x == 0:
+                                        tile = 'wall-ul'
+                                    elif x == maze.width - 1:
+                                        tile = 'wall-ur'
+                                elif y == maze.height - 1:
+                                    if x == 0:
+                                        tile = 'wall-dl'
+                                    elif x == maze.width - 1:
+                                        tile = 'wall-dr'
+                                if not tile:
+                                    tile = 'wall-h'
+                            elif cell == '|':
+                                tile = 'wall-v'
+                            if tile:
+                                res_img = random.choice(RESOURCES[tile])
+                                resources_map[res_key] = res_img
+                        background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
 
-            # first pass for non-units
-            for entity in (e for e in client.game.entities.values() if not isinstance(e, model.Unit)):
-                if isinstance(entity, model.Grave):
-                    resources_units[entity.id] = random.choice(RESOURCES['bones'])
-                    background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
+                # first pass for non-units
+                for entity in (e for e in client.game.entities.values() if not isinstance(e, model.Unit)):
+                    if isinstance(entity, model.Grave):
+                        resources_units[entity.id] = random.choice(RESOURCES['bones'])
+                        background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
 
-            # second pass for units
-            for unit in (e for e in client.game.entities.values() if isinstance(e, model.Unit)):
-                if unit.id not in resources_units:
-                    res_index = hash((client.game_id, unit.id)) % len(RESOURCES['hero'])
-                    resources_units[unit.id] = RESOURCES['hero'][res_index]
-                background.blit(resources_units[unit.id], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
-                if unit.player_id == client.player_id:
-                    pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * unit.x, CELL_SIZE * unit.y, CELL_SIZE, CELL_SIZE), width=1)
+                # second pass for units
+                for unit in (e for e in client.game.entities.values() if isinstance(e, model.Unit)):
+                    if unit.id not in resources_units:
+                        res_index = hash((client.game_id, unit.id)) % len(RESOURCES['hero'])
+                        res_img = RESOURCES['hero'][res_index]
+                        resources_units[unit.id] = (res_img, pygame.transform.flip(res_img, True, False))
+                    background.blit(resources_units[unit.id][unit_direction[unit.id]], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
+                    if unit.player_id == client.player_id:
+                        pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * unit.x, CELL_SIZE * unit.y, CELL_SIZE, CELL_SIZE), width=1)
 
-            # Blit everything to the screen
-            screen.blit(background, (0, 0))
-            pygame.display.flip()
+                # Blit everything to the screen
+                screen.blit(background, (0, 0))
+                pygame.display.flip()
 
-            inp = None
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    stop_flag.set()
-                elif event.type == KEYDOWN:
-                    if event.key == K_DOWN:
-                        inp = 'S'
-                    elif event.key == K_UP:
-                        inp = 'W'
-                    elif event.key == K_LEFT:
-                        inp = 'A'
-                    elif event.key == K_RIGHT:
-                        inp = 'D'
-                    elif event.key == K_ESCAPE:
+                inp = None
+                for event in pygame.event.get():
+                    if event.type == QUIT:
                         stop_flag.set()
+                    elif event.type == KEYDOWN:
+                        if event.key == K_DOWN:
+                            inp = 'S'
+                        elif event.key == K_UP:
+                            inp = 'W'
+                        elif event.key == K_LEFT:
+                            inp = 'A'
+                            unit_direction[client.char.id] = 0
+                        elif event.key == K_RIGHT:
+                            inp = 'D'
+                            unit_direction[client.char.id] = 1
+                        elif event.key == K_ESCAPE:
+                            stop_flag.set()
 
-            if inp and client.char:
-                delta = {
-                    'A': (-1, 0),
-                    'W': (0, -1),
-                    'S': (0, 1),
-                    'D': (1, 0)
-                }[inp]
-                new_char_x = client.char.x + delta[0]
-                new_char_y = client.char.y + delta[1]
-                target = next((unit for unit in client.game.units if (unit.x, unit.y) == (new_char_x, new_char_y)), None)
-                if target:
-                    client.attack(client.char.id, new_char_x, new_char_y)
-                else:
-                    client.move_char(client.char.id, new_char_x, new_char_y)
+                if inp and client.char:
+                    delta = {
+                        'A': (-1, 0),
+                        'W': (0, -1),
+                        'S': (0, 1),
+                        'D': (1, 0)
+                    }[inp]
+                    new_char_x = client.char.x + delta[0]
+                    new_char_y = client.char.y + delta[1]
+                    target = next((unit for unit in client.game.units if (unit.x, unit.y) == (new_char_x, new_char_y)), None)
+                    if target:
+                        client.attack(client.char.id, new_char_x, new_char_y)
+                    else:
+                        client.move_char(client.char.id, new_char_x, new_char_y)
 
-        time.sleep(1 / 25)
-
-    pygame.quit()
+            time.sleep(1 / 25)
+    finally:
+        if pygame.get_init():
+            pygame.quit()
 
 
 def main():
