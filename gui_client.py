@@ -112,6 +112,7 @@ def render(client, lock, stop_flag):
         CELL_SIZE = 48
         EFFECT_WEAR_OUT = 0.25
 
+        SHADE = []
         RESOURCES = defaultdict(list)
         def load_resources():
             for filename in glob.glob('./art/*.png'):
@@ -125,6 +126,13 @@ def render(client, lock, stop_flag):
                     except ValueError:
                         pass
                 RESOURCES[key].append(img)
+
+            for i in range(11):
+                shade = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+                #pygame.draw.rect(shade, (0, 0, 0, int(255 / 11 * (11 - i))), (0, 0, CELL_SIZE, CELL_SIZE))
+                shade.fill((0, 0, 0))
+                shade.set_alpha(int(255 / 11 * (11 - i)))
+                SHADE.append(shade.convert_alpha())
 
         resources_map = {} # id -> img
         resources_units = {} # id -> (left_img, right_img)
@@ -145,12 +153,14 @@ def render(client, lock, stop_flag):
 
                 # Fill background
                 background = pygame.Surface(screen.get_size())
-                background = background.convert()
                 background.fill((0, 0, 0))
 
                 maze = client.game.maze
                 for y in range(maze.height):
                     for x in range(maze.width):
+                        visibility = client.game.get_visibility(client.player_id, x, y)
+                        if not visibility:
+                            continue
                         cell = maze.get(x, y)
                         res_key = (cell, x, y)
                         if res_key not in resources_map:
@@ -187,14 +197,17 @@ def render(client, lock, stop_flag):
                                 resources_map[res_key] = res_img
                         background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
 
-                # first pass for non-units
+                # draw entities: first pass for non-units
                 for entity in (e for e in client.game.entities.values() if not isinstance(e, model.Unit)):
-                    if isinstance(entity, model.Grave):
-                        resources_units[entity.id] = random.choice(RESOURCES['bones'])
-                        background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
+                    if client.game.get_visibility(client.player_id, entity.x, entity.y) > 0.5:
+                        if isinstance(entity, model.Grave):
+                            resources_units[entity.id] = random.choice(RESOURCES['bones'])
+                            background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
 
-                # second pass for units
+                # draw entities: second pass for units
                 for unit in (e for e in client.game.entities.values() if isinstance(e, model.Unit)):
+                    if client.game.get_visibility(client.player_id, unit.x, unit.y) <= 0.5:
+                        continue
                     if unit.id not in resources_units:
                         res_index = hash((client.game_id, unit.id)) % len(RESOURCES['hero'])
                         res_img = RESOURCES['hero'][res_index]
@@ -208,6 +221,12 @@ def render(client, lock, stop_flag):
                             tick_to_time[unit.effects.hit_tick] = now
                         if now - tick_to_time[unit.effects.hit_tick] < EFFECT_WEAR_OUT:
                             background.blit(RESOURCES['bang'][0], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
+
+                # shade
+                for y in range(maze.height):
+                    for x in range(maze.width):
+                        if visibility := client.game.get_visibility(client.player_id, x, y):
+                            background.blit(SHADE[int(visibility * 10)], (CELL_SIZE*x, CELL_SIZE*y), special_flags=BLEND_ALPHA_SDL2)
 
                 # Blit everything to the screen
                 screen.blit(background, (0, 0))

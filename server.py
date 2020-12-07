@@ -61,7 +61,8 @@ class Server:
                     game = self._create_game()
 
                     player = GameOp(game).add_player(request.player_name)
-                    GameOp(game).spawn_unit(Unit(hp=PLAYER_CHAR_INIT_HP, damage=PLAYER_CHAR_INIT_DAMAGE, player_id=player.id))
+                    GameOp(game).spawn_unit(char := Unit(hp=PLAYER_CHAR_INIT_HP, damage=PLAYER_CHAR_INIT_DAMAGE, player_id=player.id))
+                    GameOp(game).update_visibility(player.id, char.x, char.y)
 
                     game_id = self._next_game_id
                     self._next_game_id += 1
@@ -77,15 +78,18 @@ class Server:
                 elif isinstance(request, JoinGameRequest):
                     game = self._games[request.game_id]
                     player = GameOp(game).add_player(request.player_name)
-                    GameOp(game).spawn_unit(Unit(hp=PLAYER_CHAR_INIT_HP, damage=PLAYER_CHAR_INIT_DAMAGE, player_id=player.id))
+                    GameOp(game).spawn_unit(char := Unit(hp=PLAYER_CHAR_INIT_HP, damage=PLAYER_CHAR_INIT_DAMAGE, player_id=player.id))
+                    GameOp(game).update_visibility(player.id, char.x, char.y)
                     return JoinGameResponse(player.id)
 
                 elif isinstance(request, MoveCharRequest):
                     game = self._games[request.game_id]
                     char = game.entities[request.unit_id]
+                    assert char.player_id == request.player_id
                     assert abs(char.x - request.x) <= 1 and abs(char.y - request.y) <= 1
                     assert (request.x, request.y) in game.maze.free_cells - game.occupied_cells
                     EntityOp(char).move(request.x, request.y)
+                    GameOp(game).update_visibility(request.player_id, request.x, request.y)
 
                 elif isinstance(request, AttackRequest):
                     game = self._games[request.game_id]
@@ -113,4 +117,5 @@ class Server:
     def _create_game(self):
         game = Game()
         GameOp(game).init()
+        MazeOp(game.maze).generate()
         return game

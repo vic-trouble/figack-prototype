@@ -7,7 +7,7 @@ class Maze:
             self.map = map
         else:
             # assert width and height
-            self.map = [[' ' for _ in range(width)] for _ in range(height)]
+            self.map = [[' '] * width for _ in range(height)]
 
     @property
     def height(self):
@@ -72,6 +72,7 @@ class Game:
         self.players = players or {}
         self.next_entity_id = 1
         self.tick = tick
+        self.visibility = {}
 
     def next_tick(self):
         self.tick += 1
@@ -96,3 +97,9 @@ class Game:
     @property
     def occupied_cells(self):
         return set((entity.x, entity.y) for entity in self.entities.values() if entity.opaque)
+
+    def get_visibility(self, player_id, x, y):
+        return self.visibility[f'plr{player_id}'][y][x]  # NOTE: weird keying because of json
+
+    def set_visibility(self, player_id, x, y, v):
+        self.visibility[f'plr{player_id}'][y][x] = v
