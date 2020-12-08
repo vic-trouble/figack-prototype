@@ -91,6 +91,14 @@ class EntityOp:
         self._entity = entity
 
     def move(self, x, y):
+        if x < self._entity.x:
+            self._entity.direction = LEFT
+        elif x > self._entity.x:
+            self._entity.direction = RIGHT
+        elif y < self._entity.y:
+            self._entity.direction = UP
+        elif y > self._entity.y:
+            self._entity.direction = DOWN
         self._entity.x = x
         self._entity.y = y
 

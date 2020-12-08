@@ -33,13 +33,17 @@ class Effects:
         self.hit_tick = hit_tick
 
 
+LEFT, RIGHT, UP, DOWN = range(4)
+
+
 class MazeEntity:
-    def __init__(self, id=0, x=0, y=0, opaque=False, effects=None):
+    def __init__(self, id=0, x=0, y=0, opaque=False, effects=None, direction=LEFT):
         self.id = id
         self.x = x
         self.y = y
         self.opaque = opaque
         self.effects = effects or Effects()
+        self.direction = direction
 
 
 class Grave(MazeEntity):

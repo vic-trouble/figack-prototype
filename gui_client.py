@@ -212,6 +212,10 @@ def render(client, lock, stop_flag):
                         res_index = hash((client.game_id, unit.id)) % len(RESOURCES['hero'])
                         res_img = RESOURCES['hero'][res_index]
                         resources_units[unit.id] = (res_img, pygame.transform.flip(res_img, True, False))
+                    if unit.direction == model.LEFT:
+                        unit_direction[unit.id] = 0
+                    elif unit.direction == model.RIGHT:
+                        unit_direction[unit.id] = 1
                     background.blit(resources_units[unit.id][unit_direction[unit.id]], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
                     if unit.player_id == client.player_id:
                         pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * unit.x, CELL_SIZE * unit.y, CELL_SIZE, CELL_SIZE), width=1)
@@ -243,10 +247,8 @@ def render(client, lock, stop_flag):
                             inp = 'W'
                         elif event.key == K_LEFT:
                             inp = 'A'
-                            unit_direction[client.char.id] = 0
                         elif event.key == K_RIGHT:
                             inp = 'D'
-                            unit_direction[client.char.id] = 1
                         elif event.key == K_ESCAPE:
                             stop_flag.set()
 
