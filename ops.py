@@ -1,5 +1,6 @@
 from copy import deepcopy
 import logging
+import math
 import random
 
 from model import *
@@ -84,6 +85,30 @@ class GameOp:
                     self._game.set_visibility(player_id, mx, my, 0.5 + 0.5 * (1 - dist2/r2))
                 else:
                     self._game.set_visibility(player_id, mx, my, min(self._game.get_visibility(player_id, mx, my), 0.5))
+
+    def simulate(self, game_time):
+        game_changed = False
+
+        # move projectiles
+        for entity in self._game.entities.values():
+            if isinstance(entity, Projectile):
+                arrow = entity
+                if not arrow.speed:
+                    continue
+                x, y = ProjectileOp(arrow).fly(game_time)
+                if (x, y) in self._game.maze.free_cells - self._game.occupied_cells:
+                    if (x, y) != (arrow.target_x, arrow.target_y): # TODO: check whole path
+                        EntityOp(arrow).move(x, y)
+                        game_changed = True
+                elif (x, y) != (arrow.start_x, arrow.start_y):
+                    for unit in self._game.units:
+                        if (unit.x, unit.y) == (x, y):
+                            UnitOp(unit).take_damage(arrow.damage, self._game.tick)
+                            break  # single-hit weapon
+                    arrow.speed = 0
+                    game_changed = True
+
+        return game_changed
 
 
 class EntityOp:
@@ -225,3 +250,25 @@ class MazeOp:
                 maze.set(x, y, '-')
 
         logging.debug('generated maze: \n%s', '\n'.join(''.join(row) for row in maze.map))
+
+
+class ProjectileOp:
+    def __init__(self, projectile):
+        assert isinstance(projectile, Projectile)
+        self._projectile = projectile
+
+    def update_from(self, projectile):
+        object_update_from(self._projectile, projectile)
+
+    def fly(self, game_time):
+        if not self._projectile.speed:
+            return (self._projectile.x, self._projectile.y)
+
+        vx = self._projectile.target_x - self._projectile.start_x
+        vy = self._projectile.target_y - self._projectile.start_y
+        vv = math.hypot(vx, vy)
+        vx /= vv
+        vy /= vv
+        x = round(self._projectile.start_x + vx * self._projectile.speed * (game_time - self._projectile.start_time))
+        y = round(self._projectile.start_y + vy * self._projectile.speed * (game_time - self._projectile.start_time))
+        return (x, y)

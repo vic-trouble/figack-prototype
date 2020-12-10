@@ -59,3 +59,12 @@ class OpenRequest:
         self.unit_id = unit_id
         self.x = x
         self.y = y
+
+
+class FireRequest:
+    def __init__(self, game_id=None, player_id=None, unit_id=None, x=None, y=None):
+        self.game_id = game_id
+        self.player_id = player_id
+        self.unit_id = unit_id
+        self.x = x
+        self.y = y

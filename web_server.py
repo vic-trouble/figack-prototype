@@ -16,7 +16,8 @@ server = Server()
 codec = Codec()
 for obj in (\
         protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
-        model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects):
+        protocol.FireRequest, \
+        model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects, model.Projectile):
     codec.register(obj)
 
 
@@ -35,6 +36,12 @@ async def handle_join(request):
     return aiohttp.web.json_response({'player_id': response.player_id})
 
 
+def broadcast_game_changes(connection, serer, game_id):
+    for conn in server.get_connections(game_id):
+        conn.outgoing.append(protocol.GetGameResponse(server.get_game(game_id)))
+    server.get_game(game_id).next_tick()
+
+
 async def read(ws, connection, server, game_id):
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
@@ -42,9 +49,7 @@ async def read(ws, connection, server, game_id):
             logging.debug('Got %s', request)
             connection.incoming.append(request)
             server.process_connections()  # TODO: do it somewhere outside
-            for conn in server.get_connections(game_id):
-                conn.outgoing.append(protocol.GetGameResponse(server.get_game(game_id)))
-            server.get_game(game_id).next_tick()
+            broadcast_game_changes(connection, server, game_id)
         elif msg.type == aiohttp.WSMsgType.ERROR:
             logging.exception(ws.exception())
 
@@ -56,6 +61,13 @@ async def write(ws, connection):
             logging.debug('Sent %s', message)
             await ws.send_str(codec.encode(message))
         await asyncio.sleep(0)
+
+
+async def simulate(connection, server, game_id):
+    while True:
+        if server.simulate(game_id):
+            broadcast_game_changes(connection, server, game_id)
+        await asyncio.sleep(0.5)
 
 
 async def handle_connect(request):
@@ -70,7 +82,8 @@ async def handle_connect(request):
 
     read_task = asyncio.create_task(read(ws, connection, server, game_id))
     write_task = asyncio.create_task(write(ws, connection))
-    await asyncio.gather(read_task, write_task)
+    simulate_task = asyncio.create_task(simulate(connection, server, game_id))
+    await asyncio.gather(read_task, write_task, simulate_task)
 
     logging.debug('websocket connection closed')
     return ws

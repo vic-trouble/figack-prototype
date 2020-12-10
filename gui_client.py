@@ -88,7 +88,8 @@ async def async_main():
         codec = Codec()
         for obj in ( \
                 protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
-                model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects):
+                protocol.FireRequest, \
+                model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects, model.Projectile):
             codec.register(obj)
 
         logging.debug('Connecting...')
@@ -134,13 +135,21 @@ def render(client, lock, stop_flag):
                 shade.set_alpha(int(255 / 11 * (11 - i)))
                 SHADE.append(shade.convert_alpha())
 
+            for projectile in ('arrow', ):
+                resources_projectiles[projectile] = []
+                for res_img in RESOURCES[projectile]:
+                    rotate = pygame.transform.rotate
+                    resources_projectiles[projectile].append((res_img, rotate(res_img, 180), rotate(res_img, 270), rotate(res_img, 90)))
+
         resources_map = {} # id -> img
         resources_units = {} # id -> (left_img, right_img)
+        resources_projectiles = {} # id -> (left_img, right_img, up_img, down_img)
         unit_direction = defaultdict(int)
         tick_to_time = {} # tick -> time TODO: leaking here
 
         screen = None
 
+        # TODO: interpolate projectiles
         while not stop_flag.is_set():
             with lock:
                 if not client.game:
@@ -201,8 +210,13 @@ def render(client, lock, stop_flag):
                 for entity in (e for e in client.game.entities.values() if not isinstance(e, model.Unit)):
                     if client.game.get_visibility(client.player_id, entity.x, entity.y) > 0.5:
                         if isinstance(entity, model.Grave):
-                            resources_units[entity.id] = random.choice(RESOURCES['bones'])
+                            if entity.id not in resources_units:
+                                resources_units[entity.id] = random.choice(RESOURCES['bones'])
                             background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
+                        elif isinstance(entity, model.Projectile):
+                            if entity.id not in resources_units:
+                                resources_units[entity.id] = random.choice(resources_projectiles['arrow'])
+                            background.blit(resources_units[entity.id][entity.direction], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
 
                 # draw entities: second pass for units
                 for unit in (e for e in client.game.entities.values() if isinstance(e, model.Unit)):
@@ -251,6 +265,14 @@ def render(client, lock, stop_flag):
                             inp = 'D'
                         elif event.key == K_ESCAPE:
                             stop_flag.set()
+                        elif event.key == K_SPACE:
+                            delta = {
+                                model.LEFT: (-1, 0),
+                                model.UP: (0, -1),
+                                model.DOWN: (0, 1),
+                                model.RIGHT: (1, 0)
+                            }
+                            client.fire(client.char.id, client.char.x + delta[client.char.direction][0], client.char.y + delta[client.char.direction][1])
 
                 if inp and client.char:
                     delta = {

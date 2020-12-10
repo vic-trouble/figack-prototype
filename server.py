@@ -6,10 +6,13 @@ from connection import *
 from model import *
 from ops import *
 from protocol import *
+from time import time
 
 
 PLAYER_CHAR_INIT_HP = 10
 PLAYER_CHAR_INIT_DAMAGE = 2
+ARROW_DAMAGE = 2
+ARROW_SPEED = 5
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -108,6 +111,14 @@ class Server:
                     assert game.maze.get(request.x, request.y) == '+'
                     MazeOp(game.maze).open_door(request.x, request.y)
 
+                elif isinstance(request, FireRequest):
+                    game = self._games[request.game_id]
+                    char = game.entities[request.unit_id]
+                    assert (char.x, char.y) != (request.x, request.y)
+                    GameOp(game).add_entity(Projectile(damage=ARROW_DAMAGE, speed=ARROW_SPEED, \
+                        start_x=char.x, start_y=char.y, target_x=request.x, target_y=request.y, start_time=time())
+                    )
+
                 else:
                     raise RuntimeError('Unknown request %s', type(request))
 
@@ -119,3 +130,7 @@ class Server:
         GameOp(game).init()
         MazeOp(game.maze).generate()
         return game
+
+    def simulate(self, game_id):
+        game = self._games[game_id]
+        return GameOp(game).simulate(time())

@@ -63,6 +63,26 @@ class Unit(MazeEntity):
         return self.hp <= 0
 
 
+class Projectile(MazeEntity):
+    def __init__(self, damage=0, speed=0, start_x=0, start_y=0, target_x=0, target_y=0, start_time=0):
+        super().__init__(x=start_x, y=start_y)
+        self.damage = damage
+        self.speed = speed
+        self.start_x = start_x
+        self.start_y = start_y
+        self.target_x = target_x
+        self.target_y = target_y
+        self.start_time = start_time
+        if target_x < start_x:
+            self.direction = LEFT
+        elif target_x > start_x:
+            self.direction = RIGHT
+        elif target_y < start_y:
+            self.direction = UP
+        elif target_y > start_y:
+            self.direction = DOWN
+
+
 class Player:
     def __init__(self, id=0, name=''):
         self.id = id
