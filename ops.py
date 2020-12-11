@@ -90,6 +90,7 @@ class GameOp:
         game_changed = False
 
         # move projectiles
+        killed = []
         for entity in self._game.entities.values():
             if isinstance(entity, Projectile):
                 arrow = entity
@@ -109,14 +110,22 @@ class GameOp:
                         EntityOp(arrow).move(ax, ay)
                         game_changed = True
                     elif (ax, ay) != (arrow.start_x, arrow.start_y):
-                        for unit in self._game.units:
-                            if (unit.x, unit.y) == (ax, ay):
-                                EntityOp(arrow).move(ax, ay)
-                                UnitOp(unit).take_damage(arrow.damage, self._game.tick)
-                                break  # single-hit weapon
+                        target = next((unit for unit in self._game.units if (unit.x, unit.y) == (ax, ay)), False)
+                        if target:
+                            EntityOp(arrow).move(ax, ay)
+                            UnitOp(target).take_damage(arrow.damage, self._game.tick)
+                            if target.dead:
+                                killed.append(target)
+                        # we're at opaque cell, so stop flying anyway
                         arrow.speed = 0
                         game_changed = True
                         break
+
+        for target in killed:
+            UnitOp(target).take_damage(arrow.damage, self._game.tick)
+            if target.dead: # repetition; not good
+                self.add_entity(Grave(x=target.x, y=target.y))
+                self.remove_entity(target)
 
         return game_changed
 
