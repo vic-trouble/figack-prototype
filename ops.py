@@ -95,18 +95,28 @@ class GameOp:
                 arrow = entity
                 if not arrow.speed:
                     continue
+                ax, ay = arrow.x, arrow.y
                 x, y = ProjectileOp(arrow).fly(game_time)
-                if (x, y) in self._game.maze.free_cells - self._game.occupied_cells:
-                    if (x, y) != (arrow.target_x, arrow.target_y): # TODO: check whole path
-                        EntityOp(arrow).move(x, y)
+                while (ax, ay) != (x, y):
+                    if abs(ax - x) > abs(ay - y):
+                        ax += 1 if ax < x else -1
+                    elif abs(ay - y) > abs(ax - x):
+                        ay += 1 if ay < y else -1
+                    else:
+                        ax += 1 if ax < x else -1
+                        ay += 1 if ay < y else -1
+                    if (ax, ay) in self._game.maze.free_cells - self._game.occupied_cells:
+                        EntityOp(arrow).move(ax, ay)
                         game_changed = True
-                elif (x, y) != (arrow.start_x, arrow.start_y):
-                    for unit in self._game.units:
-                        if (unit.x, unit.y) == (x, y):
-                            UnitOp(unit).take_damage(arrow.damage, self._game.tick)
-                            break  # single-hit weapon
-                    arrow.speed = 0
-                    game_changed = True
+                    elif (ax, ay) != (arrow.start_x, arrow.start_y):
+                        for unit in self._game.units:
+                            if (unit.x, unit.y) == (ax, ay):
+                                EntityOp(arrow).move(ax, ay)
+                                UnitOp(unit).take_damage(arrow.damage, self._game.tick)
+                                break  # single-hit weapon
+                        arrow.speed = 0
+                        game_changed = True
+                        break
 
         return game_changed
 
