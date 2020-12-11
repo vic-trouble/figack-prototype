@@ -12,7 +12,7 @@ from time import time
 PLAYER_CHAR_INIT_HP = 10
 PLAYER_CHAR_INIT_DAMAGE = 2
 ARROW_DAMAGE = 2
-ARROW_SPEED = 5
+ARROW_SPEED = 10
 
 logging.basicConfig(level=logging.DEBUG)
 

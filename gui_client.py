@@ -6,6 +6,7 @@ from collections import defaultdict
 import copy
 import glob
 import logging
+import math
 import os
 import pygame
 from pygame.locals import *
@@ -146,6 +147,7 @@ def render(client, lock, stop_flag):
         resources_projectiles = {} # id -> (left_img, right_img, up_img, down_img)
         unit_direction = defaultdict(int)
         tick_to_time = {} # tick -> time TODO: leaking here
+        subtile_xy = {} # id -> (x, y, smooth_flag) subtile coordinates, for smooth animation
 
         screen = None
 
@@ -154,6 +156,8 @@ def render(client, lock, stop_flag):
             with lock:
                 if not client.game:
                     continue
+
+                now = time.time() # local timer, todo: use server time
 
                 if not pygame.get_init():
                     pygame.init()
@@ -207,6 +211,7 @@ def render(client, lock, stop_flag):
                         background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
 
                 # draw entities: first pass for non-units
+                # TODO: draw ordering, instead of multi-pass
                 for entity in (e for e in client.game.entities.values() if not isinstance(e, model.Unit)):
                     if client.game.get_visibility(client.player_id, entity.x, entity.y) > 0.5:
                         if isinstance(entity, model.Grave):
@@ -214,9 +219,28 @@ def render(client, lock, stop_flag):
                                 resources_units[entity.id] = random.choice(RESOURCES['bones'])
                             background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
                         elif isinstance(entity, model.Projectile):
-                            if entity.id not in resources_units:
-                                resources_units[entity.id] = random.choice(resources_projectiles['arrow'])
-                            background.blit(resources_units[entity.id][entity.direction], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
+                            arrow = entity
+                            if arrow.id not in resources_units:
+                                resources_units[arrow.id] = random.choice(resources_projectiles['arrow'])
+                            if arrow.id not in subtile_xy:
+                                subtile_xy[arrow.id] = (0, 0, True)
+                            if arrow.speed:
+                                if subtile_xy[arrow.id][2]:
+                                    vx = arrow.target_x - arrow.start_x
+                                    vy = arrow.target_y - arrow.start_y
+                                    vv = math.hypot(vx, vy)
+                                    vx /= vv
+                                    vy /= vv
+                                    x = round(arrow.start_x * CELL_SIZE + vx * arrow.speed * (now - arrow.start_time) * CELL_SIZE) - arrow.x * CELL_SIZE
+                                    y = round(arrow.start_y * CELL_SIZE + vy * arrow.speed * (now - arrow.start_time) * CELL_SIZE) - arrow.y * CELL_SIZE
+                                    tx, ty = arrow.x + round(x / CELL_SIZE), arrow.y + round(y / CELL_SIZE)
+                                    if (tx, ty) == (arrow.start_x, arrow.start_y) or (tx, ty) in client.game.maze.free_cells - client.game.occupied_cells:
+                                        subtile_xy[arrow.id] = (x, y, True)
+                                    else:
+                                        subtile_xy[arrow.id] = (subtile_xy[arrow.id][0], subtile_xy[arrow.id][1], False) # stop extrapolating
+                            else:
+                                subtile_xy[arrow.id] = (0, 0, False)
+                            background.blit(resources_units[arrow.id][arrow.direction], (CELL_SIZE * arrow.x + subtile_xy[arrow.id][0], CELL_SIZE * arrow.y + subtile_xy[arrow.id][1]))
 
                 # draw entities: second pass for units
                 for unit in (e for e in client.game.entities.values() if isinstance(e, model.Unit)):
@@ -234,7 +258,6 @@ def render(client, lock, stop_flag):
                     if unit.player_id == client.player_id:
                         pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * unit.x, CELL_SIZE * unit.y, CELL_SIZE, CELL_SIZE), width=1)
                     if unit.effects.hit_tick:
-                        now = time.time()
                         if unit.effects.hit_tick not in tick_to_time:
                             tick_to_time[unit.effects.hit_tick] = now
                         if now - tick_to_time[unit.effects.hit_tick] < EFFECT_WEAR_OUT:
