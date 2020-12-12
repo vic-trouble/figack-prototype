@@ -3,6 +3,8 @@ import logging
 import threading
 
 from connection import *
+import json
+from messaging import Codec
 from model import *
 from ops import *
 from protocol import *
@@ -134,3 +136,22 @@ class Server:
     def simulate(self, game_id):
         game = self._games[game_id]
         return GameOp(game).simulate(time())
+
+    def create_codec(self):
+        codec = Codec()
+        for cls in (Game, Player, Maze, Unit, Grave, Effects, Projectile): # TODO: DRY
+            codec.register(cls)
+        return codec
+
+    def save(self, fout):
+        data = {'games': self._games, 'next_id': self._next_game_id}
+        codec = self.create_codec()
+        fout.write(codec.encode(data))
+
+    def load(self, fin):
+        codec = self.create_codec()
+        data = codec.decode(fin.read())
+        self._games = data['games']
+        self._next_game_id = data['next_id']
+        self._lock = threading.RLock()
+        self._connections.clear()

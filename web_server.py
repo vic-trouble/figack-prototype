@@ -5,6 +5,7 @@ import aiohttp.web
 import asyncio
 import json
 import logging
+import os
 
 from messaging import Codec
 import model
@@ -40,6 +41,8 @@ def broadcast_game_changes(connection, serer, game_id):
     for conn in server.get_connections(game_id):
         conn.outgoing.append(protocol.GetGameResponse(server.get_game(game_id)))
     server.get_game(game_id).next_tick()
+    with open('server.json', 'w') as f:
+        server.save(f)
 
 
 async def read(ws, connection, server, game_id):
@@ -91,6 +94,17 @@ async def handle_connect(request):
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
+
+    if os.path.exists('server.json'):
+        with open('server.json') as f:
+            try:
+                server.load(f)
+            except Exception as e:
+                print(e)
+                print('Load state failed. Remove the file? Y/N')
+                yn = input()
+                if yn.upper() == 'Y':
+                    os.unlink('server.json')
 
     loop = asyncio.get_event_loop()
     app = aiohttp.web.Application(loop=loop)

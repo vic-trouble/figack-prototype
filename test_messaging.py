@@ -35,3 +35,16 @@ def test_codec():
     decoded = codec.decode(code)
     assert isinstance(decoded, MyMessage)
     assert decoded == message
+
+
+def test_int_key_in_json():
+    # arrange
+    codec = Codec()
+
+    # act
+    message = {1: 2}
+    code = codec.encode(message)
+
+    # assert
+    decoded = codec.decode(code)
+    assert decoded == message

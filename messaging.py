@@ -19,7 +19,7 @@ class Codec:
         elif isinstance(obj, list):
             return [self._encode(v) for v in obj]
         elif isinstance(obj, dict):
-            return {k: self._encode(v) for k, v in obj.items()}
+            return {self._encode_key(k): self._encode(v) for k, v in obj.items()}
         else:
             return {'__message': self._rev[type(obj)], '__data': self._encode(obj.__dict__)}
 
@@ -37,8 +37,22 @@ class Codec:
                 util.object_update_from(message, self._decode(obj['__data']))
                 return message
             else:
-                return {k: self._decode(v) for k, v in obj.items()}
+                return {self._decode_key(k): self._decode(v) for k, v in obj.items()}
 
     def decode(self, code):
         obj = json.loads(code)
         return self._decode(obj)
+
+    def _encode_key(self, key):
+        if isinstance(key, int):
+            return '_i' + str(key)
+        elif isinstance(key, str):
+            return key
+        else:
+            raise InvalidValue()
+
+    def _decode_key(self, ekey):
+        if ekey.startswith('_i'):
+            return int(ekey[2:])
+        else:
+            return ekey

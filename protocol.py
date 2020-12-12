@@ -68,3 +68,13 @@ class FireRequest:
         self.unit_id = unit_id
         self.x = x
         self.y = y
+
+
+class PingRequest:
+    def __init__(self):
+        pass
+
+
+class PingResponse:
+    def __init__(self, server_time=None):
+        self.server_time = server_time

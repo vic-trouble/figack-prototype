@@ -17,7 +17,7 @@ class GameOp:
     def add_player(self, player_name):
         player = Player(len(self._game.players) + 1, player_name)
         self._game.players[player.id] = player
-        self._game.visibility[f'plr{player.id}'] = [[0] * self._game.maze.width for _ in range(self._game.maze.height)] # 0..1
+        self._game.visibility[player.id] = [[0] * self._game.maze.width for _ in range(self._game.maze.height)] # 0..1
         return player
 
     def init(self):

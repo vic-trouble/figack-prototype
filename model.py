@@ -123,7 +123,7 @@ class Game:
         return set((entity.x, entity.y) for entity in self.entities.values() if entity.opaque)
 
     def get_visibility(self, player_id, x, y):
-        return self.visibility[f'plr{player_id}'][y][x]  # NOTE: weird keying because of json
+        return self.visibility[player_id][y][x]  # NOTE: weird keying because of json
 
     def set_visibility(self, player_id, x, y, v):
-        self.visibility[f'plr{player_id}'][y][x] = v
+        self.visibility[player_id][y][x] = v
