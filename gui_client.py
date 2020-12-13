@@ -22,8 +22,9 @@ import model
 import protocol
 
 
-MAX_MESSAGE_FRESHNESS = 30
+MAX_MESSAGE_FRESHNESS = 20
 PING_TIMEOUT = 10
+MAX_RECONNECT_BACKOFF = 120
 
 
 async def read_socket(ws, codec, connection, lock, client):
@@ -55,20 +56,20 @@ async def wait_stop_flag(stop_flag, ws):
     await ws.close()
 
 
-async def check_connection(session, client, stop_flag):
+async def check_connection(session, client, stop_flag, reconnect_flag):
     while not stop_flag.is_set():
         if client.last_ping_ts:
             if time.time() - client.last_ping_ts > PING_TIMEOUT:
                 logging.debug('Connection lost')
                 stop_flag.set()
-                # TODO: reconnect
+                reconnect_flag.set()
         elif client.last_server_msg_ts and time.time() - client.last_server_msg_ts > MAX_MESSAGE_FRESHNESS:
             client.ping()
 
         await asyncio.sleep(1)
 
 
-async def connect(session, client, client_lock, stop_flag):
+async def connect(session, client, client_lock, stop_flag, reconnect_flag):
     codec = Codec()
     for obj in ( \
             protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
@@ -77,17 +78,22 @@ async def connect(session, client, client_lock, stop_flag):
         codec.register(obj)
 
     logging.debug('Connecting...')
-    async with session.ws_connect(f'http://localhost:8080/connect?game_id={client.game_id}&player_id={client.player_id}') as ws:
-        logging.debug('Connected')
-        save_state(client, 'client.json')
+    try:
+        async with session.ws_connect(f'http://localhost:8080/connect?game_id={client.game_id}&player_id={client.player_id}') as ws:
+            logging.debug('Connected')
+            save_state(client, 'client.json')
 
-        client.fetch_game()
+            client.on_connected()
 
-        read_task = asyncio.create_task(read_socket(ws, codec, client.connection, client_lock, client))
-        write_task = asyncio.create_task(write_socket(ws, codec, client.connection, client_lock))
-        wait_stop_task = asyncio.create_task(wait_stop_flag(stop_flag, ws))
-        check_connection_task = asyncio.create_task(check_connection(session, client, stop_flag))
-        await asyncio.gather(read_task, write_task, wait_stop_task, check_connection_task)
+            read_task = asyncio.create_task(read_socket(ws, codec, client.connection, client_lock, client))
+            write_task = asyncio.create_task(write_socket(ws, codec, client.connection, client_lock))
+            wait_stop_task = asyncio.create_task(wait_stop_flag(stop_flag, ws))
+            check_connection_task = asyncio.create_task(check_connection(session, client, stop_flag, reconnect_flag))
+            await asyncio.gather(read_task, write_task, wait_stop_task, check_connection_task)
+    except aiohttp.client_exceptions.ClientConnectionError as e:
+        logging.debug('Failed to connect: %s', e)
+        reconnect_flag.set()
+        stop_flag.set()
 
 
 def save_state(client, filename):
@@ -142,17 +148,28 @@ async def async_main():
         client_lock = Lock()
 
         stop_flag = Event()
+        reconnect_flag = Event()
 
-        render_thread = Thread(target=render, args=(client, client_lock, stop_flag))
+        render_thread = Thread(target=render, args=(client, client_lock, stop_flag, reconnect_flag))
         render_thread.start()
 
-        await connect(session, client, client_lock, stop_flag)
+        while True:
+            await connect(session, client, client_lock, stop_flag, reconnect_flag)
+            if reconnect_flag.is_set():
+                stop_flag.clear()
+                reconnect_flag.clear()
+                logging.debug('Reconnecting in %d s', client.reconnect_backoff)
+                await asyncio.sleep(client.reconnect_backoff)
+                client.reconnect_backoff *= 2
+                client.reconnect_backoff = min(client.reconnect_backoff, MAX_RECONNECT_BACKOFF)
+            else:
+                break
 
         stop_flag.set()
         render_thread.join()
 
 
-def render(client, lock, stop_flag):
+def render(client, lock, stop_flag, reconnect_flag):
     try:
         CELL_SIZE = 48
         EFFECT_WEAR_OUT = 0.25
@@ -194,7 +211,9 @@ def render(client, lock, stop_flag):
 
         screen = None
 
-        while not stop_flag.is_set():
+        while True:
+            if not reconnect_flag.is_set() and stop_flag.is_set():
+                break
             with lock:
                 if not client.game:
                     continue

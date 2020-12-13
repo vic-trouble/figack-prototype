@@ -16,6 +16,7 @@ class Client:
         self.last_ping_ts = None
         self.last_server_msg_ts = None
         self.last_ping_time = None
+        self.reconnect_backoff = 1  # not ideal place for it
 
     def fetch_game(self):
         self.connection.outgoing.append(GetGameRequest(self.game_id, self.player_id))
@@ -58,3 +59,9 @@ class Client:
     def ping(self):
         self.connection.outgoing.append(PingRequest())
         self.last_ping_ts = time()
+
+    def on_connected(self):
+        self.last_ping_ts = None
+        self.last_server_msg_ts = None
+        self.reconnect_backoff = 1
+        self.fetch_game()
