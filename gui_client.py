@@ -350,13 +350,14 @@ def render(client, lock, stop_flag, reconnect_flag):
                         elif event.key == K_ESCAPE:
                             stop_flag.set()
                         elif event.key == K_SPACE:
-                            delta = {
-                                model.LEFT: (-1, 0),
-                                model.UP: (0, -1),
-                                model.DOWN: (0, 1),
-                                model.RIGHT: (1, 0)
-                            }
-                            client.fire(client.char.id, client.char.x + delta[client.char.direction][0], client.char.y + delta[client.char.direction][1])
+                            if client.char:
+                                delta = {
+                                    model.LEFT: (-1, 0),
+                                    model.UP: (0, -1),
+                                    model.DOWN: (0, 1),
+                                    model.RIGHT: (1, 0)
+                                }
+                                client.fire(client.char.id, client.char.x + delta[client.char.direction][0], client.char.y + delta[client.char.direction][1])
 
                 if inp and client.char:
                     delta = {
