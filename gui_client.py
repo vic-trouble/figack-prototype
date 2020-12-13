@@ -1,5 +1,6 @@
 #! /usr/bin/python3.9
 
+import argparse
 import asyncio
 import aiohttp
 from collections import defaultdict
@@ -108,14 +109,19 @@ def load_state(filename):
 
 
 async def async_main():
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--new', default=False, action='store_true')
+    args = argparser.parse_args()
+
     game_id, player_id = None, None
 
-    state = load_state('client.json')
-    if state:
-        s = 'O'
-        game_id = state['game_id']
-        player_id = state['player_id']
-    else:
+    if not args.new:
+        if state := load_state('client.json'):
+            s = 'O'
+            game_id = state['game_id']
+            player_id = state['player_id']
+
+    if game_id is None:
         s = ''
         while s not in ('C', 'J', 'O'):
             print('(C)reate, (J)oin, c(O)nnect? ', end='')
@@ -358,6 +364,10 @@ def render(client, lock, stop_flag, reconnect_flag):
                                     model.RIGHT: (1, 0)
                                 }
                                 client.fire(client.char.id, client.char.x + delta[client.char.direction][0], client.char.y + delta[client.char.direction][1])
+                        elif event.key == ord('q'):
+                            if os.path.exists('client.json'):
+                                os.unlink('client.json')
+                            stop_flag.set()
 
                 if inp and client.char:
                     delta = {
@@ -384,7 +394,6 @@ def render(client, lock, stop_flag, reconnect_flag):
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
-    #asyncio.get_event_loop().run_until_complete(async_main())
     asyncio.run(async_main()) #, debug=True)
 
 
