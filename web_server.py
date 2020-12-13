@@ -41,8 +41,6 @@ def broadcast_game_changes(connection, serer, game_id):
     for conn in server.get_connections(game_id):
         conn.outgoing.append(protocol.GetGameResponse(server.get_game(game_id)))
     server.get_game(game_id).next_tick()
-    with open('server.json', 'w') as f:
-        server.save(f)
 
 
 async def read(ws, connection, server, game_id):
@@ -106,12 +104,16 @@ def main():
                 if yn.upper() == 'Y':
                     os.unlink('server.json')
 
-    loop = asyncio.get_event_loop()
-    app = aiohttp.web.Application(loop=loop)
+    app = aiohttp.web.Application()
     app.router.add_get('/create', handle_create)
     app.router.add_get('/join', handle_join)
     app.router.add_get('/connect', handle_connect)
-    aiohttp.web.run_app(app)
+
+    try:
+        aiohttp.web.run_app(app)
+    finally:
+        with open('server.json', 'w') as f:
+            server.save(f)
 
 
 if __name__ == '__main__':
