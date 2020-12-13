@@ -1,3 +1,6 @@
+import logging
+from time import time
+
 from connection import *
 from ops import *
 from protocol import *
@@ -10,12 +13,9 @@ class Client:
         self.game_id = game_id
         self.player_id = player_id
         self.fetch_count = 0
-
-    #def create_game(self, player_name):
-    #    response = self.server.serve(CreateGameRequest(player_name))
-    #    self.game_id = response.game_id
-    #    self.player_id = response.player_id
-    #    self._fetch_game()
+        self.last_ping_ts = None
+        self.last_server_msg_ts = None
+        self.last_ping_time = None
 
     def fetch_game(self):
         self.connection.outgoing.append(GetGameRequest(self.game_id, self.player_id))
@@ -27,17 +27,17 @@ class Client:
             else:
                 GameOp(self.game).update_from(message.game)
             self.fetch_count += 1
+        elif isinstance(message, PingResponse):
+            if self.last_ping_ts:
+                self.last_ping_time = time() - self.last_ping_ts
+                logging.debug('Ping %f ms', self.last_ping_time * 1000)
+            self.last_ping_ts = None
 
     def process_connection(self):
         while self.connection.incoming:
+            self.last_server_msg_ts = time()
             message = self.connection.incoming.pop(0)
             self.handle(message)
-
-    #def join_game(self, game_id, player_name):
-    #    response = self.server.serve(JoinGameRequest(game_id, player_name))
-    #    self.game_id = game_id
-    #    self.player_id = response.player_id
-    #    self._fetch_game()
 
     def move_char(self, unit_id, x, y):
         self.connection.outgoing.append(MoveCharRequest(self.game_id, self.player_id, unit_id, x, y))
@@ -54,3 +54,7 @@ class Client:
 
     def fire(self, unit_id, x, y):
         self.connection.outgoing.append(FireRequest(self.game_id, self.player_id, unit_id, x, y))
+
+    def ping(self):
+        self.connection.outgoing.append(PingRequest())
+        self.last_ping_ts = time()

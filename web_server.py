@@ -17,7 +17,7 @@ server = Server()
 codec = Codec()
 for obj in (\
         protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
-        protocol.FireRequest, \
+        protocol.FireRequest, protocol.PingRequest, protocol.PingResponse, \
         model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects, model.Projectile):
     codec.register(obj)
 

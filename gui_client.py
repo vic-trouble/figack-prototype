@@ -5,6 +5,7 @@ import aiohttp
 from collections import defaultdict
 import copy
 import glob
+import json
 import logging
 import math
 import os
@@ -19,6 +20,10 @@ from connection import Connection
 from messaging import Codec
 import model
 import protocol
+
+
+MAX_MESSAGE_FRESHNESS = 30
+PING_TIMEOUT = 10
 
 
 async def read_socket(ws, codec, connection, lock, client):
@@ -50,11 +55,65 @@ async def wait_stop_flag(stop_flag, ws):
     await ws.close()
 
 
+async def check_connection(session, client, stop_flag):
+    while not stop_flag.is_set():
+        if client.last_ping_ts:
+            if time.time() - client.last_ping_ts > PING_TIMEOUT:
+                logging.debug('Connection lost')
+                stop_flag.set()
+                # TODO: reconnect
+        elif client.last_server_msg_ts and time.time() - client.last_server_msg_ts > MAX_MESSAGE_FRESHNESS:
+            client.ping()
+
+        await asyncio.sleep(1)
+
+
+async def connect(session, client, client_lock, stop_flag):
+    codec = Codec()
+    for obj in ( \
+            protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
+            protocol.FireRequest, protocol.PingRequest, protocol.PingResponse, \
+            model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects, model.Projectile):
+        codec.register(obj)
+
+    logging.debug('Connecting...')
+    async with session.ws_connect(f'http://localhost:8080/connect?game_id={client.game_id}&player_id={client.player_id}') as ws:
+        logging.debug('Connected')
+        save_state(client, 'client.json')
+
+        client.fetch_game()
+
+        read_task = asyncio.create_task(read_socket(ws, codec, client.connection, client_lock, client))
+        write_task = asyncio.create_task(write_socket(ws, codec, client.connection, client_lock))
+        wait_stop_task = asyncio.create_task(wait_stop_flag(stop_flag, ws))
+        check_connection_task = asyncio.create_task(check_connection(session, client, stop_flag))
+        await asyncio.gather(read_task, write_task, wait_stop_task, check_connection_task)
+
+
+def save_state(client, filename):
+    with open(filename, 'w') as f:
+        json.dump({'game_id': client.game_id, 'player_id': client.player_id}, f)
+
+
+def load_state(filename):
+    if os.path.exists(filename):
+        with open(filename) as f:
+            return json.load(f)
+
+
 async def async_main():
-    s = ''
-    while s not in ('C', 'J', 'O'):
-        print('(C)reate, (J)oin, c(O)nnect? ', end='')
-        s = input().upper()
+    game_id, player_id = None, None
+
+    state = load_state('client.json')
+    if state:
+        s = 'O'
+        game_id = state['game_id']
+        player_id = state['player_id']
+    else:
+        s = ''
+        while s not in ('C', 'J', 'O'):
+            print('(C)reate, (J)oin, c(O)nnect? ', end='')
+            s = input().upper()
 
     async with aiohttp.ClientSession() as session:
         if s == 'C':
@@ -70,10 +129,12 @@ async def async_main():
                 j = await response.json()
                 player_id = j['player_id']
         elif s == 'O':
-            print('Enter game_id: ', end='')
-            game_id = int(input())
-            print('Enter player_id: ', end='')
-            player_id = int(input())
+            if game_id is None:
+                print('Enter game_id: ', end='')
+                game_id = int(input())
+            if player_id is None:
+                print('Enter player_id: ', end='')
+                player_id = int(input())
 
         # create client
         connection = Connection()
@@ -85,25 +146,7 @@ async def async_main():
         render_thread = Thread(target=render, args=(client, client_lock, stop_flag))
         render_thread.start()
 
-        # connect
-        codec = Codec()
-        for obj in ( \
-                protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
-                protocol.FireRequest, \
-                model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects, model.Projectile):
-            codec.register(obj)
-
-        logging.debug('Connecting...')
-        async with session.ws_connect(f'http://localhost:8080/connect?game_id={game_id}&player_id={player_id}') as ws:
-            logging.debug('Connected')
-            logging.debug('DIR = %s', dir(ws))
-
-            client.fetch_game()
-
-            read_task = asyncio.create_task(read_socket(ws, codec, connection, client_lock, client))
-            write_task = asyncio.create_task(write_socket(ws, codec, connection, client_lock))
-            wait_stop_task = asyncio.create_task(wait_stop_flag(stop_flag, ws))
-            await asyncio.gather(read_task, write_task, wait_stop_task)
+        await connect(session, client, client_lock, stop_flag)
 
         stop_flag.set()
         render_thread.join()
@@ -151,7 +194,6 @@ def render(client, lock, stop_flag):
 
         screen = None
 
-        # TODO: interpolate projectiles
         while not stop_flag.is_set():
             with lock:
                 if not client.game:

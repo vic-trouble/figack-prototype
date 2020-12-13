@@ -32,7 +32,8 @@ class Server:
             assert game_id in self._games
             assert player_id in self._games[game_id].players
             conn_key = (game_id, player_id)
-            assert conn_key not in self._connections
+            if conn_key in self._connections:
+                logging.warning('Replacing connection %s', conn_key)
             conn = Connection()
             self._connections[conn_key] = conn
             return conn
@@ -120,6 +121,9 @@ class Server:
                     GameOp(game).add_entity(Projectile(damage=ARROW_DAMAGE, speed=ARROW_SPEED, \
                         start_x=char.x, start_y=char.y, target_x=request.x, target_y=request.y, start_time=time())
                     )
+
+                elif isinstance(request, PingRequest):
+                    return PingResponse(time())
 
                 else:
                     raise RuntimeError('Unknown request %s', type(request))
