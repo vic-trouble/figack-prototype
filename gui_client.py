@@ -208,6 +208,15 @@ def render(client, lock, stop_flag, reconnect_flag):
                     rotate = pygame.transform.rotate
                     resources_projectiles[projectile].append((res_img, rotate(res_img, 180), rotate(res_img, 270), rotate(res_img, 90)))
 
+        # the lower, the eagerly drawn
+        def draw_order(entity):
+            if isinstance(entity, model.Grave):
+                return 1
+            elif isinstance(entity, model.Unit):
+                return 10
+            elif isinstance(entity, model.Projectile):
+                return 20 if entity.speed else 5
+
         resources_map = {} # id -> img
         resources_units = {} # id -> (left_img, right_img)
         resources_projectiles = {} # id -> (left_img, right_img, up_img, down_img)
@@ -231,10 +240,11 @@ def render(client, lock, stop_flag, reconnect_flag):
                     screen = pygame.display.set_mode((CELL_SIZE * client.game.maze.width, CELL_SIZE * client.game.maze.height))
                     load_resources()
 
-                # Fill background
+                # fill background
                 background = pygame.Surface(screen.get_size())
                 background.fill((0, 0, 0))
 
+                # draw maze
                 maze = client.game.maze
                 for y in range(maze.height):
                     for x in range(maze.width):
@@ -277,11 +287,28 @@ def render(client, lock, stop_flag, reconnect_flag):
                                 resources_map[res_key] = res_img
                         background.blit(resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
 
-                # draw entities: first pass for non-units
-                # TODO: draw ordering, instead of multi-pass
-                for entity in (e for e in client.game.entities.values() if not isinstance(e, model.Unit)):
+                # draw entities
+                for entity in sorted(client.game.entities.values(), key=draw_order):
                     if client.game.get_visibility(client.player_id, entity.x, entity.y) > 0.5:
-                        if isinstance(entity, model.Grave):
+                        if isinstance(entity, model.Unit):
+                            unit = entity
+                            if unit.id not in resources_units:
+                                res_index = hash((client.game_id, unit.id)) % len(RESOURCES['hero'])
+                                res_img = RESOURCES['hero'][res_index]
+                                resources_units[unit.id] = (res_img, pygame.transform.flip(res_img, True, False))
+                            if unit.direction == model.LEFT:
+                                unit_direction[unit.id] = 0
+                            elif unit.direction == model.RIGHT:
+                                unit_direction[unit.id] = 1
+                            background.blit(resources_units[unit.id][unit_direction[unit.id]], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
+                            if unit.player_id == client.player_id:
+                                pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * unit.x, CELL_SIZE * unit.y, CELL_SIZE, CELL_SIZE), width=1)
+                            if unit.effects.hit_tick:
+                                if unit.effects.hit_tick not in tick_to_time:
+                                    tick_to_time[unit.effects.hit_tick] = now
+                                if now - tick_to_time[unit.effects.hit_tick] < EFFECT_WEAR_OUT:
+                                    background.blit(RESOURCES['bang'][0], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
+                        elif isinstance(entity, model.Grave):
                             if entity.id not in resources_units:
                                 resources_units[entity.id] = random.choice(RESOURCES['bones'])
                             background.blit(resources_units[entity.id], (CELL_SIZE * entity.x, CELL_SIZE * entity.y))
@@ -308,27 +335,6 @@ def render(client, lock, stop_flag, reconnect_flag):
                             else:
                                 subtile_xy[arrow.id] = (0, 0, False)
                             background.blit(resources_units[arrow.id][arrow.direction], (CELL_SIZE * arrow.x + subtile_xy[arrow.id][0], CELL_SIZE * arrow.y + subtile_xy[arrow.id][1]))
-
-                # draw entities: second pass for units
-                for unit in (e for e in client.game.entities.values() if isinstance(e, model.Unit)):
-                    if client.game.get_visibility(client.player_id, unit.x, unit.y) <= 0.5:
-                        continue
-                    if unit.id not in resources_units:
-                        res_index = hash((client.game_id, unit.id)) % len(RESOURCES['hero'])
-                        res_img = RESOURCES['hero'][res_index]
-                        resources_units[unit.id] = (res_img, pygame.transform.flip(res_img, True, False))
-                    if unit.direction == model.LEFT:
-                        unit_direction[unit.id] = 0
-                    elif unit.direction == model.RIGHT:
-                        unit_direction[unit.id] = 1
-                    background.blit(resources_units[unit.id][unit_direction[unit.id]], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
-                    if unit.player_id == client.player_id:
-                        pygame.draw.rect(background, (0, 255, 0), (CELL_SIZE * unit.x, CELL_SIZE * unit.y, CELL_SIZE, CELL_SIZE), width=1)
-                    if unit.effects.hit_tick:
-                        if unit.effects.hit_tick not in tick_to_time:
-                            tick_to_time[unit.effects.hit_tick] = now
-                        if now - tick_to_time[unit.effects.hit_tick] < EFFECT_WEAR_OUT:
-                            background.blit(RESOURCES['bang'][0], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
 
                 # shade
                 for y in range(maze.height):
