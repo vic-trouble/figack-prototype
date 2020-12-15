@@ -7,7 +7,7 @@ from model import *
 from util import *
 
 
-VISIBILITY_RADIUS = 5
+VISIBILITY_RADIUS = 10
 
 
 class GameOp:

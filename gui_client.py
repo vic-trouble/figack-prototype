@@ -3,9 +3,10 @@
 import argparse
 import asyncio
 import aiohttp
-from collections import defaultdict
+from collections import defaultdict, deque
 import copy
 import glob
+from itertools import chain
 import json
 import logging
 import math
@@ -26,6 +27,8 @@ import protocol
 MAX_MESSAGE_FRESHNESS = 20
 PING_TIMEOUT = 10
 MAX_RECONNECT_BACKOFF = 120
+PROJECTILE_TRAIL_BUFFER = 10
+PROJECTILE_TRAIL_TRANSPARENCY = 25
 
 
 async def read_socket(ws, codec, connection, lock, client):
@@ -204,9 +207,15 @@ def render(client, lock, stop_flag, reconnect_flag):
 
             for projectile in ('arrow', ):
                 resources_projectiles[projectile] = []
+                resources_projectile_trails[projectile] = []
                 for res_img in RESOURCES[projectile]:
                     rotate = pygame.transform.rotate
-                    resources_projectiles[projectile].append((res_img, rotate(res_img, 180), rotate(res_img, 270), rotate(res_img, 90)))
+                    res_images = (res_img, rotate(res_img, 180), rotate(res_img, 270), rotate(res_img, 90))
+                    def make_transparent(img, alpha):
+                        img = img.copy()
+                        img.set_alpha(alpha)
+                        return img
+                    resources_projectiles[projectile].append(tuple(chain(res_images, (make_transparent(img, PROJECTILE_TRAIL_TRANSPARENCY) for img in res_images))))
 
         # the lower, the eagerly drawn
         def draw_order(entity):
@@ -220,6 +229,8 @@ def render(client, lock, stop_flag, reconnect_flag):
         resources_map = {} # id -> img
         resources_units = {} # id -> (left_img, right_img)
         resources_projectiles = {} # id -> (left_img, right_img, up_img, down_img)
+        resources_projectile_trails = {} # id -> (left_img, right_img, up_img, down_img)
+        projectile_trails = defaultdict(lambda: deque(maxlen=PROJECTILE_TRAIL_BUFFER)) # id -> circular buffer
         unit_direction = defaultdict(int)
         tick_to_time = {} # tick -> time TODO: leaking here
         subtile_xy = {} # id -> (x, y, smooth_flag) subtile coordinates, for smooth animation
@@ -334,7 +345,31 @@ def render(client, lock, stop_flag, reconnect_flag):
                                         subtile_xy[arrow.id] = (subtile_xy[arrow.id][0], subtile_xy[arrow.id][1], False) # stop extrapolating
                             else:
                                 subtile_xy[arrow.id] = (0, 0, False)
-                            background.blit(resources_units[arrow.id][arrow.direction], (CELL_SIZE * arrow.x + subtile_xy[arrow.id][0], CELL_SIZE * arrow.y + subtile_xy[arrow.id][1]))
+                            x, y = CELL_SIZE * arrow.x + subtile_xy[arrow.id][0], CELL_SIZE * arrow.y + subtile_xy[arrow.id][1]
+                            # render trail
+                            trail = list(projectile_trails[arrow.id])
+                            lerp_trail = []
+                            if trail:
+                                #LERP_POINTS = 1
+                                i = 0
+                                for pt1, pt2 in zip(trail, trail[1:] + [(x, y)]):
+                                    lerp_trail.append(pt1)
+                                    if i >= len(trail) - 2:
+                                        lerp_trail.append((pt1[0]*0.25 + pt2[0]*0.75, pt1[1]*0.25 + pt2[1]*0.75))
+                                    if i >= len(trail) - 4:
+                                        lerp_trail.append((pt1[0]*0.5 + pt2[0]*0.5, pt1[1]*0.5 + pt2[1]*0.5))
+                                    if i >= len(trail) - 2:
+                                        lerp_trail.append((pt1[0]*0.75 + pt2[0]*0.25, pt1[1]*0.75 + pt2[1]*0.25))
+                                    lerp_trail.append(pt2)
+                                    i += 1
+                                trail.append((round(trail[-1][0] * 0.5 + x * 0.5), round(trail[-1][0] * 0.5 + y * 0.5)))
+
+                            for trail_xy in lerp_trail:
+                                trail_img = resources_units[arrow.id][arrow.direction + 4]
+                                background.blit(trail_img, (trail_xy))
+                            projectile_trails[arrow.id].append((x, y))
+                            # render arrow
+                            background.blit(resources_units[arrow.id][arrow.direction], (x, y))
 
                 # shade
                 for y in range(maze.height):
