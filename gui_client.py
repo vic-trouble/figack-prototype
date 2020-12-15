@@ -339,7 +339,19 @@ def render(client, lock, stop_flag, reconnect_flag):
                                     x = round(arrow.start_x * CELL_SIZE + vx * arrow.speed * (now - arrow.start_time) * CELL_SIZE) - arrow.x * CELL_SIZE
                                     y = round(arrow.start_y * CELL_SIZE + vy * arrow.speed * (now - arrow.start_time) * CELL_SIZE) - arrow.y * CELL_SIZE
                                     tx, ty = arrow.x + round(x / CELL_SIZE), arrow.y + round(y / CELL_SIZE)
-                                    if (tx, ty) == (arrow.start_x, arrow.start_y) or (tx, ty) in client.game.maze.free_cells - client.game.occupied_cells:
+                                    def hit_test(ax, ay, x, y):
+                                        while (ax, ay) != (x, y):
+                                            if abs(ax - x) > abs(ay - y):
+                                                ax += 1 if ax < x else -1
+                                            elif abs(ay - y) > abs(ax - x):
+                                                ay += 1 if ay < y else -1
+                                            else:
+                                                ax += 1 if ax < x else -1
+                                                ay += 1 if ay < y else -1
+                                            if (ax, ay) not in client.game.maze.free_cells - client.game.occupied_cells:
+                                                return True
+                                        return False
+                                    if (tx, ty) == (arrow.start_x, arrow.start_y) or not hit_test(arrow.x, arrow.y, tx, ty):
                                         subtile_xy[arrow.id] = (x, y, True)
                                     else:
                                         subtile_xy[arrow.id] = (subtile_xy[arrow.id][0], subtile_xy[arrow.id][1], False) # stop extrapolating
