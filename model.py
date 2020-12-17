@@ -29,8 +29,9 @@ class Maze:
 
 
 class Effects:
-    def __init__(self, hit_tick=None):
+    def __init__(self, hit_tick=None, jump_tick=None):
         self.hit_tick = hit_tick
+        self.jump_tick = jump_tick
 
 
 LEFT, RIGHT, UP, DOWN = range(4)

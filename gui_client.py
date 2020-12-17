@@ -248,6 +248,7 @@ class Renderer:
         self.subtile_xy = {} # id -> (x, y, smooth_flag) subtile coordinates, for smooth animation
         self.screen = None
         self.prev_pos = {} # id -> (x, y)
+        self.prev_effects = {} # id -> effects
         self.animations = defaultdict(dict) # id -> {anim_type: anim}
 
     def load_resources(self):
@@ -311,14 +312,14 @@ class Renderer:
         for id, entity in client.game.entities.items():
             if isinstance(entity, Unit):
                 unit = entity
-                if id in self.prev_pos and entity.pos != self.prev_pos[id]:
-                    if unit.effects.jump_tick not in self.tick_to_time:
-                        self.tick_to_time[unit.effects.jump_tick] = now  # hack
+                if id in self.prev_pos and entity.pos != self.prev_pos[id] or id in self.prev_effects and unit.effects.jump_tick != self.prev_effects[id].jump_tick:
+                    if id in self.prev_effects and unit.effects.jump_tick != self.prev_effects[id].jump_tick:
                         self.animations[id][AnimationKind.MOVEMENT] = JumpAnimation(self, unit, now, self.prev_pos[id], entity.pos)
                     else:
                         self.animations[id][AnimationKind.MOVEMENT] = WalkAnimation(self, unit, now, self.prev_pos[id], entity.pos)
             # TODO: projectiles too!
             self.prev_pos[id] = entity.pos
+            self.prev_effects[id] = entity.effects
 
         # tick animations
         for animations in self.animations.values():
