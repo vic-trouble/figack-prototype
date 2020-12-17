@@ -15,6 +15,7 @@ PLAYER_CHAR_INIT_HP = 10
 PLAYER_CHAR_INIT_DAMAGE = 2
 ARROW_DAMAGE = 2
 ARROW_SPEED = 20
+MAX_JUMP_DISTANCE = 2
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -95,7 +96,7 @@ class Server:
                     assert abs(char.x - request.x) <= 1 and abs(char.y - request.y) <= 1
                     assert (request.x, request.y) in game.maze.free_cells - game.occupied_cells
                     EntityOp(char).move(request.x, request.y)
-                    GameOp(game).update_visibility(request.player_id, request.x, request.y)
+                    GameOp(game).update_visibility(request.player_id, char.x, char.y)
 
                 elif isinstance(request, AttackRequest):
                     game = self._games[request.game_id]
@@ -124,6 +125,14 @@ class Server:
 
                 elif isinstance(request, PingRequest):
                     return PingResponse(time())
+
+                elif isinstance(request, JumpRequest):
+                    game = self._games[request.game_id]
+                    char = game.entities[request.unit_id]
+                    assert char.player_id == request.player_id
+                    assert abs(char.x - request.x) <= MAX_JUMP_DISTANCE and abs(char.y - request.y) <= MAX_JUMP_DISTANCE
+                    UnitOp(char).jump(request.x, request.y, game.tick, game.maze.free_cells - game.occupied_cells)
+                    GameOp(game).update_visibility(request.player_id, char.x, char.y)
 
                 else:
                     raise RuntimeError('Unknown request %s', type(request))

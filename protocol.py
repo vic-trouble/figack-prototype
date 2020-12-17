@@ -78,3 +78,12 @@ class PingRequest:
 class PingResponse:
     def __init__(self, server_time=None):
         self.server_time = server_time
+
+
+class JumpRequest:
+    def __init__(self, game_id=None, player_id=None, unit_id=None, x=None, y=None):
+        self.game_id = game_id
+        self.player_id = player_id
+        self.unit_id = unit_id
+        self.x = x
+        self.y = y

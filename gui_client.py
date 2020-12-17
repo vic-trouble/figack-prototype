@@ -430,6 +430,15 @@ def process_user_input(client, stop_flag):
                         model.RIGHT: (1, 0)
                     }
                     client.fire(client.char.id, client.char.x + delta[client.char.direction][0], client.char.y + delta[client.char.direction][1])
+            elif event.key == ord('j'):
+                if client.char:
+                    delta = {
+                        model.LEFT: (-1, 0),
+                        model.UP: (0, -1),
+                        model.DOWN: (0, 1),
+                        model.RIGHT: (1, 0)
+                    }
+                    client.jump(client.char.id, client.char.x + delta[client.char.direction][0] * 2, client.char.y + delta[client.char.direction][1] * 2)
             elif event.key == ord('q'):
                 if os.path.exists('client.json'):
                     os.unlink('client.json')

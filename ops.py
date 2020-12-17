@@ -161,6 +161,31 @@ class UnitOp:
     def update_from(self, unit):
         object_update_from(self._unit, unit)
 
+    def jump(self, x, y, tick, walkable_cells):
+        if x < self._unit.x:
+            self._unit.direction = LEFT
+        elif x > self._unit.x:
+            self._unit.direction = RIGHT
+        elif y < self._unit.y:
+            self._unit.direction = UP
+        elif y > self._unit.y:
+            self._unit.direction = DOWN
+        while self._unit.pos != (x, y):
+            nx, ny = self._unit.x, self._unit.y
+            if nx < x:
+                nx += 1
+            elif nx > x:
+                nx -= 1
+            elif ny < y:
+                ny += 1
+            elif ny > y:
+                ny -= 1
+            if (nx, ny) not in walkable_cells:
+                break
+            self._unit.x = nx
+            self._unit.y = ny
+        self._unit.effects.jump_tick = tick
+
 
 class PlayerOp:
     def __init__(self, player):

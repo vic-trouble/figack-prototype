@@ -65,3 +65,6 @@ class Client:
         self.last_server_msg_ts = None
         self.reconnect_backoff = 1
         self.fetch_game()
+
+    def jump(self, unit_id, x, y):
+        self.connection.outgoing.append(JumpRequest(self.game_id, self.player_id, unit_id, x, y))

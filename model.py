@@ -45,6 +45,10 @@ class MazeEntity:
         self.effects = effects or Effects()
         self.direction = direction
 
+    @property
+    def pos(self):
+        return (self.x, self.y)
+
 
 class Grave(MazeEntity):
     def __init__(self, id=0, x=0, y=0):
