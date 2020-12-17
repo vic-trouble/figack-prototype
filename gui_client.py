@@ -5,6 +5,7 @@ import asyncio
 import aiohttp
 from collections import defaultdict, deque
 import copy
+import enum
 import glob
 from itertools import chain
 import json
@@ -30,6 +31,7 @@ MAX_RECONNECT_BACKOFF = 120
 PROJECTILE_TRAIL_BUFFER = 10
 PROJECTILE_TRAIL_TRANSPARENCY = 25
 WALK_SPEED = 3
+JUMP_SPEED = 4
 
 
 async def read_socket(ws, codec, connection, lock, client):
@@ -203,6 +205,31 @@ class WalkAnimation:
             self.done = True
 
 
+class JumpAnimation:
+    def __init__(self, render, unit, time, start_pos, end_pos):
+        self.render = render
+        self.unit = unit
+        self.start_pos = start_pos
+        self.end_pos = end_pos
+        self.start_time = time
+        self.done = False
+
+    def update(self, time):
+        if time - self.start_time < 1/JUMP_SPEED:
+            dt = (time - self.start_time) / (1/JUMP_SPEED)
+            x = Renderer.CELL_SIZE * dt * (self.end_pos[0] - self.start_pos[0]) - Renderer.CELL_SIZE * (self.end_pos[0] - self.start_pos[0])
+            y = Renderer.CELL_SIZE * dt * (self.end_pos[1] - self.start_pos[1]) - Renderer.CELL_SIZE * (self.end_pos[1] - self.start_pos[1]) \
+                - math.sin(dt * math.pi / 2) * Renderer.CELL_SIZE / 2
+            self.render.subtile_xy[self.unit.id] = (x, y)
+        else:
+            del self.render.subtile_xy[self.unit.id]
+            self.done = True
+
+
+class AnimationKind(enum.Enum):
+    MOVEMENT = 1
+
+
 class Renderer:
     CELL_SIZE = 48
     EFFECT_WEAR_OUT = 0.25
@@ -221,7 +248,7 @@ class Renderer:
         self.subtile_xy = {} # id -> (x, y, smooth_flag) subtile coordinates, for smooth animation
         self.screen = None
         self.prev_pos = {} # id -> (x, y)
-        self.animations = defaultdict(dict) # id -> {anim_class: anim}
+        self.animations = defaultdict(dict) # id -> {anim_type: anim}
 
     def load_resources(self):
         for filename in glob.glob('./art/*.png'):
@@ -283,8 +310,13 @@ class Renderer:
         # launch movement animation
         for id, entity in client.game.entities.items():
             if isinstance(entity, Unit):
+                unit = entity
                 if id in self.prev_pos and entity.pos != self.prev_pos[id]:
-                    self.animations[id][WalkAnimation] = WalkAnimation(self, entity, now, self.prev_pos[id], entity.pos)
+                    if unit.effects.jump_tick not in self.tick_to_time:
+                        self.tick_to_time[unit.effects.jump_tick] = now  # hack
+                        self.animations[id][AnimationKind.MOVEMENT] = JumpAnimation(self, unit, now, self.prev_pos[id], entity.pos)
+                    else:
+                        self.animations[id][AnimationKind.MOVEMENT] = WalkAnimation(self, unit, now, self.prev_pos[id], entity.pos)
             # TODO: projectiles too!
             self.prev_pos[id] = entity.pos
 
