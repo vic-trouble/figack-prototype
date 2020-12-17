@@ -141,19 +141,13 @@ class Server:
         game = self._games[game_id]
         return GameOp(game).simulate(time())
 
-    def create_codec(self):
-        codec = Codec()
-        for cls in (Game, Player, Maze, Unit, Grave, Effects, Projectile): # TODO: DRY
-            codec.register(cls)
-        return codec
-
     def save(self, fout):
         data = {'games': self._games, 'next_id': self._next_game_id}
-        codec = self.create_codec()
+        codec = Codec(auto_register=True, globals=globals())
         fout.write(codec.encode(data))
 
     def load(self, fin):
-        codec = self.create_codec()
+        codec = Codec(auto_register=True, globals=globals())
         data = codec.decode(fin.read())
         self._games = data['games']
         self._next_game_id = data['next_id']

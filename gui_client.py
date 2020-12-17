@@ -21,7 +21,7 @@ from client import Client
 from connection import Connection
 from messaging import Codec
 import model
-import protocol
+from protocol import *
 
 
 MAX_MESSAGE_FRESHNESS = 20
@@ -74,12 +74,7 @@ async def check_connection(session, client, stop_flag, reconnect_flag):
 
 
 async def connect(session, client, client_lock, stop_flag, reconnect_flag):
-    codec = Codec()
-    for obj in ( \
-            protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
-            protocol.FireRequest, protocol.PingRequest, protocol.PingResponse, \
-            model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects, model.Projectile):
-        codec.register(obj)
+    codec = Codec(auto_register=True, globals=globals())
 
     logging.debug('Connecting...')
     try:

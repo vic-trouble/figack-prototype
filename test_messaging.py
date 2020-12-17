@@ -2,8 +2,8 @@ from messaging import *
 
 
 class UserVal:
-    def __init__(self):
-        self.data = 42
+    def __init__(self, data=0):
+        self.data = data
 
     def __eq__(self, user_val):
         return self.data == user_val.data
@@ -48,3 +48,17 @@ def test_int_key_in_json():
     # assert
     decoded = codec.decode(code)
     assert decoded == message
+
+
+def test_auto_register():
+    # arrange
+    codec = Codec(auto_register=True)
+
+    # act
+    code = codec.encode(UserVal(42))
+
+    # assert
+    codec2 = Codec(auto_register=True, globals=globals())
+    decoded = codec2.decode(code)
+    assert isinstance(decoded, UserVal)
+    assert decoded.data == 42

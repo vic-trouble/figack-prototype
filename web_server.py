@@ -9,23 +9,18 @@ import os
 
 from messaging import Codec
 import model
-import protocol
+from protocol import *
 from server import Server
 
 server = Server()
 
-codec = Codec()
-for obj in (\
-        protocol.GetGameRequest, protocol.GetGameResponse, protocol.MoveCharRequest, protocol.AttackRequest, protocol.OpenRequest, \
-        protocol.FireRequest, protocol.PingRequest, protocol.PingResponse, \
-        model.Game, model.Player, model.Maze, model.Unit, model.Grave, model.Effects, model.Projectile):
-    codec.register(obj)
+codec = Codec(auto_register=True, globals=globals())
 
 
 async def handle_create(request):
     logging.debug('Create request')
     name = request.rel_url.query['name']
-    response = server.serve(protocol.CreateGameRequest(player_name=name))
+    response = server.serve(CreateGameRequest(player_name=name))
     return aiohttp.web.json_response({'game_id': response.game_id, 'player_id': response.player_id})
 
 
@@ -33,13 +28,13 @@ async def handle_join(request):
     logging.debug('Join request')
     game_id = int(request.rel_url.query['game_id'])
     name = request.rel_url.query['name']
-    response = server.serve(protocol.JoinGameRequest(game_id=game_id, player_name=name))
+    response = server.serve(JoinGameRequest(game_id=game_id, player_name=name))
     return aiohttp.web.json_response({'player_id': response.player_id})
 
 
 def broadcast_game_changes(connection, serer, game_id):
     for conn in server.get_connections(game_id):
-        conn.outgoing.append(protocol.GetGameResponse(server.get_game(game_id)))
+        conn.outgoing.append(GetGameResponse(server.get_game(game_id)))
     server.get_game(game_id).next_tick()
 
 
