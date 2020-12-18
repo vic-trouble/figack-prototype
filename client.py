@@ -68,3 +68,6 @@ class Client:
 
     def jump(self, unit_id, x, y):
         self.connection.outgoing.append(JumpRequest(self.game_id, self.player_id, unit_id, x, y))
+
+    def teleport(self, unit_id, x, y):
+        self.connection.outgoing.append(TeleportRequest(self.game_id, self.player_id, unit_id, x, y))

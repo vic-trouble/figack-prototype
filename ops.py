@@ -186,6 +186,11 @@ class UnitOp:
             self._unit.y = ny
         self._unit.effects.jump_tick = tick
 
+    def teleport(self, x, y, tick):
+        self._unit.x = x
+        self._unit.y = y
+        self._unit.effects.teleport_tick = tick
+
 
 class PlayerOp:
     def __init__(self, player):

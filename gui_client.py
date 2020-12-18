@@ -32,6 +32,7 @@ PROJECTILE_TRAIL_BUFFER = 10
 PROJECTILE_TRAIL_TRANSPARENCY = 25
 WALK_SPEED = 3
 JUMP_SPEED = 4
+TELEPORT_TIME = 0.75
 
 
 async def read_socket(ws, codec, connection, lock, client):
@@ -185,7 +186,21 @@ def sign(x):
         return 0
 
 
-class WalkAnimation:
+def make_transparent(img, alpha):
+    img = img.copy()
+    img.set_alpha(alpha)
+    return img
+
+
+class Animation:
+    def draw_bg(self, canvas):
+        pass
+
+    def draw_fg(self, canvas):
+        pass
+
+
+class WalkAnimation(Animation):
     def __init__(self, render, unit, time, start_pos, end_pos):
         self.render = render
         self.unit = unit
@@ -205,7 +220,7 @@ class WalkAnimation:
             self.done = True
 
 
-class JumpAnimation:
+class JumpAnimation(Animation):
     def __init__(self, render, unit, time, start_pos, end_pos):
         self.render = render
         self.unit = unit
@@ -226,16 +241,123 @@ class JumpAnimation:
             self.done = True
 
 
+class TeleportAnimation(Animation):
+    def __init__(self, render, unit, time, start_pos, end_pos):
+        self.render = render
+        self.unit = unit
+        self.start_pos = start_pos
+        self.end_pos = end_pos
+        self.start_time = time
+        self.done = False
+        img = self.render.RESOURCES['teleport'][0]
+        self.images = [make_transparent(img, i*255/10) for i in range(11)]
+        self.img_index = 0
+
+    def update(self, time):
+        self.done = time - self.start_time > TELEPORT_TIME
+        if not self.done:
+            self.img_index = int((time - self.start_time) / TELEPORT_TIME * 10)
+
+    def draw_bg(self, canvas):
+        canvas.blit(self.images[10 - self.img_index], (self.start_pos[0] * Renderer.CELL_SIZE, self.start_pos[1] * Renderer.CELL_SIZE))
+        canvas.blit(self.images[self.img_index], (self.end_pos[0] * Renderer.CELL_SIZE, self.end_pos[1] * Renderer.CELL_SIZE))
+
+
 class AnimationKind(enum.Enum):
     MOVEMENT = 1
+    TELEPORT = 2
+
+
+class ControllerState(enum.Enum):
+    MOVE_CHAR = 1
+    AIM = 2
+    TELEPORT = 3
+
+
+class Controller:
+    def __init__(self):
+        self.state = ControllerState.MOVE_CHAR
+        self.aim = None
+
+    def process_user_input(self, client, stop_flag):
+        if not pygame.get_init():
+            return
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                stop_flag.set()
+            elif event.type == KEYDOWN:
+                if event.key in (K_DOWN, K_UP, K_LEFT, K_RIGHT):
+                    delta = {
+                        K_LEFT: (-1, 0),
+                        K_UP: (0, -1),
+                        K_DOWN: (0, 1),
+                        K_RIGHT: (1, 0)
+                    }[event.key]
+                    if self.state == ControllerState.MOVE_CHAR:
+                        if client.char:
+                            new_char_x = client.char.x + delta[0]
+                            new_char_y = client.char.y + delta[1]
+                            target = next((unit for unit in client.game.units if (unit.x, unit.y) == (new_char_x, new_char_y)), None)
+                            if target:
+                                client.attack(client.char.id, new_char_x, new_char_y)
+                            elif client.game.maze.get(new_char_x, new_char_y) == '+':
+                                client.open_door(client.char.id, new_char_x, new_char_y)
+                            else:
+                                client.move_char(client.char.id, new_char_x, new_char_y)
+                    elif self.state in (ControllerState.AIM, ControllerState.TELEPORT):
+                        self.aim = (self.aim[0] + delta[0], self.aim[1] + delta[1])
+                elif event.key == K_ESCAPE:
+                    if self.state == ControllerState.MOVE_CHAR:
+                        stop_flag.set()
+                    else:
+                        self.state = ControllerState.MOVE_CHAR
+                elif event.key == K_SPACE:
+                    if client.char:
+                        delta = {
+                            model.LEFT: (-1, 0),
+                            model.UP: (0, -1),
+                            model.DOWN: (0, 1),
+                            model.RIGHT: (1, 0)
+                        }
+                        client.fire(client.char.id, client.char.x + delta[client.char.direction][0], client.char.y + delta[client.char.direction][1])
+                elif event.key == ord('j'):
+                    if client.char:
+                        delta = {
+                            model.LEFT: (-1, 0),
+                            model.UP: (0, -1),
+                            model.DOWN: (0, 1),
+                            model.RIGHT: (1, 0)
+                        }
+                        client.jump(client.char.id, client.char.x + delta[client.char.direction][0] * 2, client.char.y + delta[client.char.direction][1] * 2)
+                elif event.key == ord('f'):
+                    if client.char:
+                        if self.state != ControllerState.AIM:
+                            self.state = ControllerState.AIM
+                            self.aim = client.char.pos
+                        else:
+                            client.fire(client.char.id, *self.aim)
+                            self.state = ControllerState.MOVE_CHAR
+                elif event.key == ord('t'):
+                    if client.char:
+                        if self.state != ControllerState.TELEPORT:
+                            self.state = ControllerState.TELEPORT
+                            self.aim = client.char.pos
+                        else:
+                            client.teleport(client.char.id, *self.aim)
+                            self.state = ControllerState.MOVE_CHAR
+                elif event.key == ord('q'):
+                    if os.path.exists('client.json'):
+                        os.unlink('client.json')
+                    stop_flag.set()
 
 
 class Renderer:
     CELL_SIZE = 48
     EFFECT_WEAR_OUT = 0.25
 
-    def __init__(self, client):
+    def __init__(self, client, controller):
         self.client = client
+        self.controller = controller
         self.SHADE = []
         self.RESOURCES = defaultdict(list)
         self.resources_map = {} # id -> img
@@ -276,10 +398,6 @@ class Renderer:
             for res_img in self.RESOURCES[projectile]:
                 rotate = pygame.transform.rotate
                 res_images = (res_img, rotate(res_img, 180), rotate(res_img, 270), rotate(res_img, 90))
-                def make_transparent(img, alpha):
-                    img = img.copy()
-                    img.set_alpha(alpha)
-                    return img
                 self.resources_projectiles[projectile].append(tuple(chain(res_images, (make_transparent(img, PROJECTILE_TRAIL_TRANSPARENCY) for img in res_images))))
 
     def init(self):
@@ -315,6 +433,8 @@ class Renderer:
                 if id in self.prev_pos and entity.pos != self.prev_pos[id] or id in self.prev_effects and unit.effects.jump_tick != self.prev_effects[id].jump_tick:
                     if id in self.prev_effects and unit.effects.jump_tick != self.prev_effects[id].jump_tick:
                         self.animations[id][AnimationKind.MOVEMENT] = JumpAnimation(self, unit, now, self.prev_pos[id], entity.pos)
+                    elif id in self.prev_effects and unit.effects.teleport_tick != self.prev_effects[id].teleport_tick:
+                        self.animations[id][AnimationKind.TELEPORT] = TeleportAnimation(self, unit, now, self.prev_pos[id], entity.pos)
                     else:
                         self.animations[id][AnimationKind.MOVEMENT] = WalkAnimation(self, unit, now, self.prev_pos[id], entity.pos)
             # TODO: projectiles too!
@@ -376,6 +496,11 @@ class Renderer:
                         self.resources_map[res_key] = res_img
                 background.blit(self.resources_map[res_key], (CELL_SIZE*x, CELL_SIZE*y))
 
+        # bg animation effects
+        for animations in self.animations.values():
+            for animation in animations.values():
+                animation.draw_bg(background)
+
         # draw entities
         for entity in sorted(client.game.entities.values(), key=self.draw_order):
             if client.game.get_visibility(client.player_id, entity.x, entity.y) > 0.5:
@@ -394,8 +519,6 @@ class Renderer:
                         x += self.subtile_xy[unit.id][0]
                         y += self.subtile_xy[unit.id][1]
                     background.blit(self.resources_units[unit.id][self.unit_direction[unit.id]], (x, y))
-                    if unit.player_id == client.player_id:
-                        pygame.draw.rect(background, (0, 255, 0), (x, y, CELL_SIZE, CELL_SIZE), width=1)
                     if unit.effects.hit_tick:
                         if unit.effects.hit_tick not in self.tick_to_time:
                             self.tick_to_time[unit.effects.hit_tick] = now
@@ -465,11 +588,30 @@ class Renderer:
                     # render arrow
                     background.blit(self.resources_units[arrow.id][arrow.direction], (x, y))
 
+        # fg animation effects
+        for animations in self.animations.values():
+            for animation in animations.values():
+                animation.draw_fg(background)
+
         # shade
         for y in range(maze.height):
             for x in range(maze.width):
                 if visibility := client.game.get_visibility(client.player_id, x, y):
                     background.blit(self.SHADE[int(visibility * 10)], (CELL_SIZE*x, CELL_SIZE*y), special_flags=BLEND_ALPHA_SDL2)
+
+        # draw activity marker
+        if self.controller.state == ControllerState.MOVE_CHAR:
+            if char := client.char:
+                x = CELL_SIZE * char.x
+                y = CELL_SIZE * char.y
+                if char.id in self.subtile_xy:
+                    x += self.subtile_xy[char.id][0]
+                    y += self.subtile_xy[char.id][1]
+                pygame.draw.rect(background, (0, 255, 0), (x, y, CELL_SIZE, CELL_SIZE), width=1)
+        elif self.controller.state in (ControllerState.AIM, ControllerState.TELEPORT):
+            x = CELL_SIZE * self.controller.aim[0]
+            y = CELL_SIZE * self.controller.aim[1]
+            pygame.draw.circle(background, (0, 255, 0), (x + CELL_SIZE/2, y + CELL_SIZE/2), CELL_SIZE/2, width=1)
 
         # Blit everything to the screen
         self.screen.blit(background, (0, 0))
@@ -480,59 +622,9 @@ class Renderer:
             pygame.quit()
 
 
-def process_user_input(client, stop_flag):
-    if not pygame.get_init():
-        return
-    for event in pygame.event.get():
-        if event.type == QUIT:
-            stop_flag.set()
-        elif event.type == KEYDOWN:
-            if event.key in (K_DOWN, K_UP, K_LEFT, K_RIGHT):
-                if client.char:
-                    delta = {
-                        K_LEFT: (-1, 0),
-                        K_UP: (0, -1),
-                        K_DOWN: (0, 1),
-                        K_RIGHT: (1, 0)
-                    }[event.key]
-                    new_char_x = client.char.x + delta[0]
-                    new_char_y = client.char.y + delta[1]
-                    target = next((unit for unit in client.game.units if (unit.x, unit.y) == (new_char_x, new_char_y)), None)
-                    if target:
-                        client.attack(client.char.id, new_char_x, new_char_y)
-                    elif client.game.maze.get(new_char_x, new_char_y) == '+':
-                        client.open_door(client.char.id, new_char_x, new_char_y)
-                    else:
-                        client.move_char(client.char.id, new_char_x, new_char_y)
-            elif event.key == K_ESCAPE:
-                stop_flag.set()
-            elif event.key == K_SPACE:
-                if client.char:
-                    delta = {
-                        model.LEFT: (-1, 0),
-                        model.UP: (0, -1),
-                        model.DOWN: (0, 1),
-                        model.RIGHT: (1, 0)
-                    }
-                    client.fire(client.char.id, client.char.x + delta[client.char.direction][0], client.char.y + delta[client.char.direction][1])
-            elif event.key == ord('j'):
-                if client.char:
-                    delta = {
-                        model.LEFT: (-1, 0),
-                        model.UP: (0, -1),
-                        model.DOWN: (0, 1),
-                        model.RIGHT: (1, 0)
-                    }
-                    client.jump(client.char.id, client.char.x + delta[client.char.direction][0] * 2, client.char.y + delta[client.char.direction][1] * 2)
-            elif event.key == ord('q'):
-                if os.path.exists('client.json'):
-                    os.unlink('client.json')
-                stop_flag.set()
-
-
-
 def game_loop(client, lock, stop_flag, reconnect_flag):
-    renderer = Renderer(client)
+    controller = Controller()
+    renderer = Renderer(client, controller)
     try:
         while True:
             if not reconnect_flag.is_set() and stop_flag.is_set():
@@ -540,7 +632,7 @@ def game_loop(client, lock, stop_flag, reconnect_flag):
 
             with lock:
                 renderer.render()
-                process_user_input(client, stop_flag)
+                controller.process_user_input(client, stop_flag)
 
             time.sleep(1 / 25)
     finally:

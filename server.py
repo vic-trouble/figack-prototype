@@ -134,6 +134,15 @@ class Server:
                     UnitOp(char).jump(request.x, request.y, game.tick, game.maze.free_cells - game.occupied_cells)
                     GameOp(game).update_visibility(request.player_id, char.x, char.y)
 
+                elif isinstance(request, TeleportRequest):
+                    game = self._games[request.game_id]
+                    char = game.entities[request.unit_id]
+                    assert char.player_id == request.player_id
+                    assert game.get_visibility(char.player_id, request.x, request.y) >= 0.5  # TODO: move validation inside the *Op
+                    assert (request.x, request.y) in game.maze.free_cells - game.occupied_cells
+                    UnitOp(char).teleport(request.x, request.y, game.tick)
+                    GameOp(game).update_visibility(request.player_id, char.x, char.y)
+
                 else:
                     raise RuntimeError('Unknown request %s', type(request))
 
