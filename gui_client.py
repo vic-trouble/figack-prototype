@@ -33,6 +33,7 @@ PROJECTILE_TRAIL_TRANSPARENCY = 25
 WALK_SPEED = 3
 JUMP_SPEED = 4
 TELEPORT_TIME = 0.75
+TAKE_DAMAGE_TIME = 0.5
 
 
 async def read_socket(ws, codec, connection, lock, client):
@@ -201,11 +202,11 @@ class Animation:
 
 
 class WalkAnimation(Animation):
-    def __init__(self, render, unit, time, start_pos, end_pos):
-        self.render = render
+    def __init__(self, renderer, unit, time, start_pos):
+        self.renderer = renderer
         self.unit = unit
         self.start_pos = start_pos
-        self.end_pos = end_pos
+        self.end_pos = unit.pos
         self.start_time = time
         self.done = False
 
@@ -214,18 +215,18 @@ class WalkAnimation(Animation):
             dt = (time - self.start_time) / (1/WALK_SPEED)
             x = Renderer.CELL_SIZE * dt * (self.end_pos[0] - self.start_pos[0]) - Renderer.CELL_SIZE * sign(self.end_pos[0] - self.start_pos[0])
             y = Renderer.CELL_SIZE * dt * (self.end_pos[1] - self.start_pos[1]) - Renderer.CELL_SIZE * sign(self.end_pos[1] - self.start_pos[1])
-            self.render.subtile_xy[self.unit.id] = (x, y)
+            self.renderer.subtile_xy[self.unit.id] = (x, y)
         else:
-            del self.render.subtile_xy[self.unit.id]
+            del self.renderer.subtile_xy[self.unit.id]
             self.done = True
 
 
 class JumpAnimation(Animation):
-    def __init__(self, render, unit, time, start_pos, end_pos):
-        self.render = render
+    def __init__(self, renderer, unit, time, start_pos):
+        self.renderer = renderer
         self.unit = unit
         self.start_pos = start_pos
-        self.end_pos = end_pos
+        self.end_pos = unit.pos
         self.start_time = time
         self.done = False
 
@@ -235,21 +236,21 @@ class JumpAnimation(Animation):
             x = Renderer.CELL_SIZE * dt * (self.end_pos[0] - self.start_pos[0]) - Renderer.CELL_SIZE * (self.end_pos[0] - self.start_pos[0])
             y = Renderer.CELL_SIZE * dt * (self.end_pos[1] - self.start_pos[1]) - Renderer.CELL_SIZE * (self.end_pos[1] - self.start_pos[1]) \
                 - math.sin(dt * math.pi / 2) * Renderer.CELL_SIZE / 2
-            self.render.subtile_xy[self.unit.id] = (x, y)
+            self.renderer.subtile_xy[self.unit.id] = (x, y)
         else:
-            del self.render.subtile_xy[self.unit.id]
+            del self.renderer.subtile_xy[self.unit.id]
             self.done = True
 
 
 class TeleportAnimation(Animation):
-    def __init__(self, render, unit, time, start_pos, end_pos):
-        self.render = render
+    def __init__(self, renderer, unit, time, start_pos):
+        self.renderer = renderer
         self.unit = unit
         self.start_pos = start_pos
-        self.end_pos = end_pos
+        self.end_pos = unit.pos
         self.start_time = time
         self.done = False
-        img = self.render.RESOURCES['teleport'][0]
+        img = self.renderer.RESOURCES['teleport'][0]
         self.images = [make_transparent(img, i*255/10) for i in range(11)]
         self.img_index = 0
 
@@ -263,9 +264,25 @@ class TeleportAnimation(Animation):
         canvas.blit(self.images[self.img_index], (self.end_pos[0] * Renderer.CELL_SIZE, self.end_pos[1] * Renderer.CELL_SIZE))
 
 
+class HitAnimation(Animation):
+    def __init__(self, renderer, unit, time):
+        self.renderer = renderer
+        self.unit = unit
+        self.pos = unit.pos
+        self.start_time = time
+        self.done = False
+
+    def update(self, time):
+        self.done = time - self.start_time > TAKE_DAMAGE_TIME
+
+    def draw_fg(self, canvas):
+        canvas.blit(self.renderer.RESOURCES['bang'][0], (self.pos[0] * Renderer.CELL_SIZE, self.pos[1] * Renderer.CELL_SIZE))
+
+
 class AnimationKind(enum.Enum):
     MOVEMENT = 1
     TELEPORT = 2
+    TAKE_DAMAGE = 3
 
 
 class ControllerState(enum.Enum):
@@ -353,7 +370,6 @@ class Controller:
 
 class Renderer:
     CELL_SIZE = 48
-    EFFECT_WEAR_OUT = 0.25
 
     def __init__(self, client, controller):
         self.client = client
@@ -366,7 +382,6 @@ class Renderer:
         self.resources_projectile_trails = {} # id -> (left_img, right_img, up_img, down_img)
         self.projectile_trails = defaultdict(lambda: deque(maxlen=PROJECTILE_TRAIL_BUFFER)) # id -> circular buffer
         self.unit_direction = defaultdict(int)
-        self.tick_to_time = {} # tick -> time TODO: leaking here
         self.subtile_xy = {} # id -> (x, y, smooth_flag) subtile coordinates, for smooth animation
         self.screen = None
         self.prev_pos = {} # id -> (x, y)
@@ -432,11 +447,13 @@ class Renderer:
                 unit = entity
                 if id in self.prev_pos and entity.pos != self.prev_pos[id] or id in self.prev_effects and unit.effects.jump_tick != self.prev_effects[id].jump_tick:
                     if id in self.prev_effects and unit.effects.jump_tick != self.prev_effects[id].jump_tick:
-                        self.animations[id][AnimationKind.MOVEMENT] = JumpAnimation(self, unit, now, self.prev_pos[id], entity.pos)
+                        self.animations[id][AnimationKind.MOVEMENT] = JumpAnimation(self, unit, now, self.prev_pos[id])
                     elif id in self.prev_effects and unit.effects.teleport_tick != self.prev_effects[id].teleport_tick:
-                        self.animations[id][AnimationKind.TELEPORT] = TeleportAnimation(self, unit, now, self.prev_pos[id], entity.pos)
+                        self.animations[id][AnimationKind.TELEPORT] = TeleportAnimation(self, unit, now, self.prev_pos[id])
                     else:
-                        self.animations[id][AnimationKind.MOVEMENT] = WalkAnimation(self, unit, now, self.prev_pos[id], entity.pos)
+                        self.animations[id][AnimationKind.MOVEMENT] = WalkAnimation(self, unit, now, self.prev_pos[id])
+                if id in self.prev_effects and unit.effects.hit_tick != self.prev_effects[id].hit_tick:
+                    self.animations[id][AnimationKind.TAKE_DAMAGE] = HitAnimation(self, unit, now)
             # TODO: projectiles too!
             self.prev_pos[id] = entity.pos
             self.prev_effects[id] = entity.effects
@@ -519,11 +536,6 @@ class Renderer:
                         x += self.subtile_xy[unit.id][0]
                         y += self.subtile_xy[unit.id][1]
                     background.blit(self.resources_units[unit.id][self.unit_direction[unit.id]], (x, y))
-                    if unit.effects.hit_tick:
-                        if unit.effects.hit_tick not in self.tick_to_time:
-                            self.tick_to_time[unit.effects.hit_tick] = now
-                        if now - self.tick_to_time[unit.effects.hit_tick] < Renderer.EFFECT_WEAR_OUT:
-                            background.blit(self.RESOURCES['bang'][0], (CELL_SIZE * unit.x, CELL_SIZE * unit.y))
                 elif isinstance(entity, model.Grave):
                     if entity.id not in self.resources_units:
                         self.resources_units[entity.id] = random.choice(self.RESOURCES['bones'])
