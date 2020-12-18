@@ -1,0 +1,4 @@
+TODO:
+- cooldowns (melee, shooting, movement etc.)
+- fix teleports into darkness
+- FPS counter
