@@ -608,8 +608,8 @@ class Renderer:
         # shade
         for y in range(maze.height):
             for x in range(maze.width):
-                if visibility := client.game.get_visibility(client.player_id, x, y):
-                    background.blit(self.SHADE[int(visibility * 10)], (CELL_SIZE*x, CELL_SIZE*y), special_flags=BLEND_ALPHA_SDL2)
+                visibility = client.game.get_visibility(client.player_id, x, y) or 0
+                background.blit(self.SHADE[int(visibility * 10)], (CELL_SIZE*x, CELL_SIZE*y), special_flags=BLEND_ALPHA_SDL2)
 
         # draw activity marker
         if self.controller.state == ControllerState.MOVE_CHAR:
