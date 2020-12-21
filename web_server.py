@@ -42,7 +42,7 @@ async def read(ws, connection, server, game_id):
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
             request = codec.decode(msg.data)
-            logging.debug('Got %s', request)
+            logging.debug('IN  %s', msg.data)
             connection.incoming.append(request)
             server.process_connections()  # TODO: do it somewhere outside
             broadcast_game_changes(connection, server, game_id)
@@ -54,8 +54,9 @@ async def write(ws, connection):
     while True:
         while connection.outgoing:
             message = connection.outgoing.pop(0)
-            logging.debug('Sent %s', message)
-            await ws.send_str(codec.encode(message))
+            data = codec.encode(message)
+            logging.debug('OUT %s', data)
+            await ws.send_str(data)
         await asyncio.sleep(0)
 
 
@@ -86,7 +87,7 @@ async def handle_connect(request):
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)-15s %(levelname)s %(message)s')
 
     if os.path.exists('server.json'):
         with open('server.json') as f:

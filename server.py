@@ -17,8 +17,6 @@ ARROW_DAMAGE = 2
 ARROW_SPEED = 20
 MAX_JUMP_DISTANCE = 2
 
-logging.basicConfig(level=logging.DEBUG)
-
 
 class Server:
     def __init__(self):
